@@ -42,6 +42,7 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): FIELD = struct
   let one = Ring.one
 
   let normalize x: t = snd (Ring.euclidean_div x p)
+  let to_string = Fun.compose Ring.to_string normalize
 
   let add a b = normalize (Ring.add a b)
   let sub a b = normalize (Ring.sub a b)
@@ -49,10 +50,12 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): FIELD = struct
 
   let rec egcd a b =
     if b = zero then (a, one, zero)
-    else
+    else begin
       let (q, r) = Ring.euclidean_div a b in
+      (* Printf.printf "%s = %s * %s + %s [%s]\n" (to_string a) (Ring.to_string b) (to_string q) (to_string r) (Ring.to_string p); *)
       let (g, x, y) = egcd b r in
       (g, y, Ring.sub x (Ring.mul q y))
+    end
 
   let inv a =
     let (g, x, _) = egcd a p in
@@ -62,5 +65,4 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): FIELD = struct
   let div a b = mul a (inv b)
   let equal a b = normalize a = normalize b
   let of_int = Fun.compose normalize Ring.of_int
-  let to_string = Fun.compose Ring.to_string normalize
 end

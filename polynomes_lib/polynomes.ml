@@ -13,16 +13,17 @@ module MakePoly (F : FIELD): EUCLIDEAN_RING = struct
   let of_int x = [|F.zero; F.of_int x|]
 
   let deg (p: t): int = Array.length p - 1
-
-  let leading_coeff (p: t) =
-    if Array.length p = 0 then F.zero else p.(deg p)
-
+  
   let normalize (p: t): t =
     let n = ref (Array.length p) in
     while !n > 0 && p.(!n - 1) = F.zero do
       decr n
     done;
     Array.sub p 0 !n
+
+  let leading_coeff (p: t) =
+    let p = normalize p in
+    if Array.length p = 0 then F.zero else p.(deg p)
 
   let equal a b = normalize a = normalize b
 
@@ -55,21 +56,23 @@ module MakePoly (F : FIELD): EUCLIDEAN_RING = struct
     normalize r
   let mul = ( *^ )
 
-  let ( *. ) (a: F.t): t -> t = Array.map (F.mul a) 
+  let ( *. ) (a: F.t) (p: t): t = Array.map (F.mul a) p |> normalize
 
-  let ( **^ ): t -> int -> t =
+  let ( **^ ) a n: t =
     let rec aux acc a n =
       if n = 0 then acc
       else if n mod 2 = 0 then aux acc (a *^ a) (n / 2)
       else aux (acc *^ a) (a *^ a) (n / 2)
     in
-    aux one
+    aux one a n |> normalize
   let exp = ( **^ )
     
   let eval (p: t) (x: F.t): F.t =
     Array.fold_right (fun coeff acc -> F.add coeff (F.mul x acc)) p F.zero
    
   let euclidean_div (a: t) (b: t): t * t =
+    let a = normalize a in
+    let b = normalize b in
     let degb = deg b in
     if degb < 0 then failwith "Don't divide polynomes by 0" else
     let q = ref zero in
@@ -79,7 +82,7 @@ module MakePoly (F : FIELD): EUCLIDEAN_RING = struct
       r := !r -^ fact *^ b;
       q := !q +^ fact
     done;
-    (!q, !r)
+    (normalize !q, normalize !r) (* I still don't fucking know why it needs to be normalized again here *)
     
   let to_string (p: t): string =
     if Array.length p = 0 then (F.to_string F.zero)

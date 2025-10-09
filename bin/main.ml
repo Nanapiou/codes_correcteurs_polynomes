@@ -31,4 +31,6 @@ let () =
   print_string @@ C.to_string one;
   print_newline ();
   print_string @@ C.to_string (C.mul i i);
+  print_newline ();
+  print_string @@ C.to_string (C.inv i);
   print_newline ()
