@@ -1,0 +1,4 @@
+(executable
+ (public_name polynomes)
+ (name main)
+ (libraries polynomes))
