@@ -13,6 +13,7 @@ module type EUCLIDEAN_RING = sig
   val to_string : t -> string
 end
 
+
 module IntRing : EUCLIDEAN_RING = struct
   type t = int
   let zero = 0

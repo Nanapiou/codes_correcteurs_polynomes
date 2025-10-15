@@ -33,7 +33,13 @@ module type EXTENDED_FIELD_PARAM = sig
   val p : Ring.t  (* The irreducible element *)
 end
 
-module MakeExtendedField (P : EXTENDED_FIELD_PARAM): FIELD = struct
+module type EXTENDED_FIELD = sig
+  include FIELD
+  module Ring : EUCLIDEAN_RING
+  val p : Ring.t 
+end
+
+module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
   module Ring = P.Ring
   let p = P.p
   type t = Ring.t
@@ -52,7 +58,7 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): FIELD = struct
     if b = zero then (a, one, zero)
     else begin
       let (q, r) = Ring.euclidean_div a b in
-      (* Printf.printf "%s = %s * %s + %s [%s]\n" (to_string a) (Ring.to_string b) (to_string q) (to_string r) (Ring.to_string p); *)
+      (* Printf.printf "%s = %s * (%s) + %s\n" (to_string a) (Ring.to_string b) (to_string q) (to_string r); *)
       let (g, x, y) = egcd b r in
       (g, y, Ring.sub x (Ring.mul q y))
     end
