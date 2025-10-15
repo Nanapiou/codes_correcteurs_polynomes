@@ -17,7 +17,7 @@ end
 module BchCode(P: BCH_PARAM) = struct
   module PF = P.PF
   module F = PF.F
-  let delta = if P.delta mod 2 = 0 then P.delta + 1 else P.delta (* Gives the same sigma *)
+  let delta = P.delta 
   let q = F.order
   let () = if q = -1 then failwith "Do not use a BCH on a non-finite field."
   let m = P.m
@@ -32,7 +32,6 @@ module BchCode(P: BCH_PARAM) = struct
     let p = P.primitive_p
   end)
   module FqmX = MakePoly(Fqm) 
-  (* let alpha = FqmX.F.of_int 1 (* Just Fqm.x, but now it works with types... *) *)
   let alpha = Fqm.x
   (* Alpha is now a root of primitive_p *)
   

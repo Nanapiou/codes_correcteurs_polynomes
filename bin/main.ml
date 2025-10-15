@@ -10,7 +10,7 @@ module F2X = MakePoly(F2)
 module Bch15 = BchCode(struct
   module PF = F2X
   let m = 4
-  let delta = 5
+  let delta = 7
   open PF
   let primitive_p = x **^ 4 +^ x +^ one
 end)
@@ -126,15 +126,15 @@ let () =
   example_with_errors t;
 
   (* show one example with t+1 errors (may fail) *)
-  example_with_errors (t + 1);
+  (* example_with_errors (t + 1); *)
 
   (* run many trials to compare empirical success for t and t+1 errors *)
   let trials_count = 1000 in
   let succ_t  = trials trials_count t in
-  let succ_tp1 = trials trials_count (t + 1) in
+  (* let succ_tp1 = trials trials_count (t + 1) in *)
   Printf.printf "\nAfter %d random trials:\n" trials_count;
   Printf.printf " corrected when <= t errors : %d / %d (%.2f%%)\n"
     succ_t trials_count (100. *. float_of_int succ_t /. float_of_int trials_count);
-  Printf.printf " corrected when t+1 errors  : %d / %d (%.2f%%)\n"
-    succ_tp1 trials_count (100. *. float_of_int succ_tp1 /. float_of_int trials_count);
+  (* Printf.printf " corrected when t+1 errors  : %d / %d (%.2f%%)\n" *)
+    (* succ_tp1 trials_count (100. *. float_of_int succ_tp1 /. float_of_int trials_count); *)
   ()
