@@ -18,6 +18,7 @@ module type POLY_EUCLIDEAN_RING = sig
   val leading_coeff : t -> F.t
   val constant_coeff : t -> F.t
   val of_array : int array -> t
+  val to_array : t -> int array
 end
 
 (* A set of polynomes which is a field, need to works mod P with P irreductible *)
@@ -35,6 +36,7 @@ module type POLY_FIELD = sig
   val leading_coeff : t -> F.t
   val constant_coeff : t -> F.t
   val of_array : int array -> t
+  val to_array : t -> int array
 end
 
 module type POLY_EXTENDED_FIELD_PARAM = sig
@@ -64,6 +66,8 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let leading_coeff = Ring.leading_coeff
   let constant_coeff = Ring.constant_coeff
   let eval = Ring.eval
+  let to_array = Ring.to_array
+  let to_int = Ring.to_int
 
   let zero = Ring.zero
   let one = Ring.one
@@ -113,6 +117,12 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING = struct
       decr n
     done;
     Array.sub p 0 !n
+
+  let to_int p =
+    let p = normalize p in
+    if deg p < 1 then 0 else F.to_int p.(1)
+
+  let to_array = Array.map F.to_int
 
   let leading_coeff (p: t) =
     let p = normalize p in

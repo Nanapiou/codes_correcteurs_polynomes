@@ -11,6 +11,7 @@ module type FIELD = sig
   val div : t -> t -> t
   val equal : t -> t -> bool
   val of_int : int -> t
+  val to_int : t -> int
   val to_string : t -> string
 end
 
@@ -25,6 +26,7 @@ module FloatField : FIELD = struct
   let div = ( /. )
   let equal = (=)
   let of_int = float_of_int
+  let to_int = int_of_float
   let to_string = string_of_float
 end
 
@@ -71,4 +73,5 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
   let div a b = mul a (inv b)
   let equal a b = normalize a = normalize b
   let of_int = Fun.compose normalize Ring.of_int
+  let to_int = Ring.to_int
 end

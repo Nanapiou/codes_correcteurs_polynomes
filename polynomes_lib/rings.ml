@@ -10,6 +10,7 @@ module type EUCLIDEAN_RING = sig
   (* We could have use the Euclidean function conecpt, but may be unoptimized for integers *)
   val equal : t -> t -> bool
   val of_int : int -> t
+  val to_int : t -> int
   val to_string : t -> string
 end
 
@@ -34,5 +35,6 @@ module IntRing : EUCLIDEAN_RING = struct
   let euclidean_div a b = (a / b, normalize a b)
   let equal = ( = )
   let of_int = Fun.id
+  let to_int = Fun.id
   let to_string = string_of_int
 end
