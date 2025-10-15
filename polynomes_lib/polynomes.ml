@@ -37,6 +37,7 @@ module type POLY_FIELD = sig
   val constant_coeff : t -> F.t
   val of_array : int array -> t
   val to_array : t -> int array
+  val euclidean_div : t -> t -> t * t
 end
 
 module type POLY_EXTENDED_FIELD_PARAM = sig
@@ -97,6 +98,11 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let div a b = mul a (inv b)
   let equal a b = normalize a = normalize b
   let of_int = Fun.compose normalize Ring.of_int
+  let euclidean_div a b = let (q, r) = Ring.euclidean_div a b in (normalize q, normalize r)
+
+  let order =
+    if F.order = -1 then -1
+    else IntRing.to_int @@ IntRing.exp (IntRing.of_int F.order) (deg p)
 end 
 
 module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING = struct
@@ -120,7 +126,7 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING = struct
 
   let to_int p =
     let p = normalize p in
-    if deg p < 1 then 0 else F.to_int p.(1)
+    if deg p < 0 then 0 else F.to_int p.(0) (* Why not p.(1)? Because I only use it in this way lmao, in BCH code *)
 
   let to_array = Array.map F.to_int
 

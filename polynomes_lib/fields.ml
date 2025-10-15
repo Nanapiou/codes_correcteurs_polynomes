@@ -13,6 +13,8 @@ module type FIELD = sig
   val of_int : int -> t
   val to_int : t -> int
   val to_string : t -> string
+
+  val order : int (* -1 if infinite *)
 end
 
 module FloatField : FIELD = struct
@@ -28,6 +30,8 @@ module FloatField : FIELD = struct
   let of_int = float_of_int
   let to_int = int_of_float
   let to_string = string_of_float
+
+  let order = -1
 end
 
 module type EXTENDED_FIELD_PARAM = sig
@@ -74,4 +78,6 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
   let equal a b = normalize a = normalize b
   let of_int = Fun.compose normalize Ring.of_int
   let to_int = Ring.to_int
+
+  let order = Ring.to_int p
 end
