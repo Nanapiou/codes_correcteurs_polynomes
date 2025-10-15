@@ -57,7 +57,7 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   type t = Ring.t
 
   module F = Ring.F
-  let x = Ring.of_int 1
+  let x = Ring.x
   let ( +^ ) = Ring.( +^ )
   let ( -^ ) = Ring.( -^ )
   let ( *^ ) = Ring.( *^ )
@@ -105,14 +105,14 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
     else IntRing.to_int @@ IntRing.exp (IntRing.of_int F.order) (deg p)
 end 
 
-module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING = struct
+module MakePoly (F : FIELD) = struct
   module F = F
   type t = F.t array
 
   let x = [|F.zero; F.one|]
   let one = [|F.one|]
   let zero = [||]
-  let of_int x = [|F.zero; F.of_int x|]
+  let of_int x = [|F.of_int x|]
   let of_array = Array.map F.of_int
 
   let deg (p: t): int = Array.length p - 1
@@ -126,8 +126,7 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING = struct
 
   let to_int p =
     let p = normalize p in
-    if deg p < 0 then 0 else F.to_int p.(0) (* Why not p.(1)? Because I only use it in this way lmao, in BCH code *)
-
+    if deg p < 0 then 0 else F.to_int p.(0)
   let to_array = Array.map F.to_int
 
   let leading_coeff (p: t) =

@@ -21,6 +21,7 @@ module BchCode(P: BCH_PARAM) = struct
   let q = F.order
   let () = if q = -1 then failwith "Do not use a BCH on a non-finite field."
   let m = P.m
+  let t = delta / 2
 
   let n =
     let open Rings.IntRing in
@@ -31,7 +32,8 @@ module BchCode(P: BCH_PARAM) = struct
     let p = P.primitive_p
   end)
   module FqmX = MakePoly(Fqm) 
-  let alpha = FqmX.F.of_int 1 (* Just Fqm.x, but now it works with types... *)
+  (* let alpha = FqmX.F.of_int 1 (* Just Fqm.x, but now it works with types... *) *)
+  let alpha = Fqm.x
   (* Alpha is now a root of primitive_p *)
   
   module ZnZ = Fields.MakeExtendedField(struct
@@ -65,4 +67,14 @@ module BchCode(P: BCH_PARAM) = struct
     PF.of_array @@ FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) full_sigma one
    
   let k = n - IntSet.cardinal full_sigma 
+
+  let encode a =
+    if Array.length a <> k then failwith "Only accept messages of length k" else
+    let open PF in
+    to_array @@ (of_array a) *^ full_g
+
+  let decode ag =
+    if Array.length ag > n then failwith "Only decode messages of size n" else
+    let (a, _) = PF.euclidean_div (PF.of_array ag) full_g in
+    PF.to_array a
 end

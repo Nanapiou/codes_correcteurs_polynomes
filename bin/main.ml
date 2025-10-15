@@ -24,15 +24,20 @@ end)
 
 open Bch15
 
-let _print_int_array a =
+let print_int_array a =
   print_char '[';
   Array.iter (Printf.printf "%d, ") a;
   print_endline "]"
 
-let () = print_int_set @@ full_sigma
+let () = Printf.printf "k: %d, delta: %d, n: %d, t: %d\n" k delta n t
 
 let ( *^ ) = F2X.( *^ )
 let () =
   print_endline @@ F2X.to_string full_g;
   print_endline @@ F2X.to_string ((g 1) *^ (g 3))
+
+let a = [|0; 1; 0; 1; 0; 0; 0|]
+let ea = encode a
+let () = print_int_array ea
+let () = print_int_array (decode ea)
   
