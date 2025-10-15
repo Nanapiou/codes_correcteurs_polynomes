@@ -59,11 +59,7 @@ module BchCode(P: BCH_PARAM) = struct
      *)
     PF.of_array @@ FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) (sigma i) one
 
-  let gtemp i =
-    let open FqmX in
-    FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) (sigma i) one
-
-  let full_sigma = List.fold_left (fun acc i -> IntSet.union acc (sigma i)) IntSet.empty (List.init delta Fun.id)
+  let full_sigma = List.fold_left (fun acc i -> IntSet.union acc (sigma i)) IntSet.empty (List.init (delta - 1) ((+) 1))
   let full_g =
     let open FqmX in
     PF.of_array @@ FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) full_sigma one
