@@ -68,13 +68,51 @@ module BchCode(P: BCH_PARAM) = struct
    
   let k = n - IntSet.cardinal full_sigma 
 
+  let complete size a =
+    let full = Array.make size 0 in
+    Array.iteri (fun i v -> full.(i) <- v) a;
+    full
+
   let encode a =
     if Array.length a <> k then failwith "Only accept messages of length k" else
     let open PF in
-    to_array @@ (of_array a) *^ full_g
+    let ag = to_array @@ (of_array a) *^ full_g in
+    complete n ag
 
   let decode ag =
-    if Array.length ag > n then failwith "Only decode messages of size n" else
+    if Array.length ag > n then failwith "Only decode messages of length n" else
     let (a, _) = PF.euclidean_div (PF.of_array ag) full_g in
-    PF.to_array a
+    let a = PF.to_array a in
+    complete k a
+
+  let alpha_powers =
+    let a = Array.make n Fqm.zero in
+    a.(0) <- Fqm.one;
+    for i = 1 to n - 1 do
+      a.(i) <- Fqm.mul alpha a.(i - 1)
+    done;
+    a (* Basically contains every element of the field... Maybe use the Chien Search *)
+  let sub_alpha_powers = Array.sub alpha_powers 1 (2 * t)
+  let correct m =
+    let open FqmX in
+    let r' = of_array m in
+    let s = Array.map (eval r') sub_alpha_powers in
+    let rec build_pi ((pim, aim, bim), (pi, ai, bi)) =
+      if deg pi < t && deg pim >= t then (pi, ai, bi)
+      else begin
+        let (si, pip) = FqmX.euclidean_div pim pi in
+        (* Printf.printf "%s = %s * [%s] + %s" (to_string pi) (to_string si) (to_string pim) (to_string pip); *)
+        build_pi @@ ((pi, ai, bi), (pip, aim -^ si *^ ai, bim -^ si *^ bi))
+      end
+    in
+    let (pi, _, bi) = build_pi ((x **^ (2 * t), one, zero), (s, zero, one)) in
+    (* print_endline @@ to_string pi; *)
+    let sigma = (Fqm.inv (eval pi Fqm.zero)) *. bi in
+    let e = Array.make n Fqm.zero in 
+    (* |!!!| Only works for binary BCH codes |!!!| *)
+    if eval sigma Fqm.one = Fqm.zero then e.(0) <- Fqm.one;
+    Array.iteri (fun i alphap -> if eval sigma (Fqm.inv alphap) = Fqm.zero then e.(i) <- Fqm.one) alpha_powers;
+    let r = r' -^ e in
+    let ag = to_array r in
+    complete n ag
 end

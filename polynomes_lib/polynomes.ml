@@ -91,6 +91,7 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
     end
 
   let inv a =
+    if a = zero then failwith "Inverse of 0?" else
     let (g, x, _) = egcd a p in
     if not (deg g = 0) then failwith "No inverse (not a field: q is not irreductible)"
     else (F.inv @@ constant_coeff g) *. (normalize x)
@@ -159,6 +160,7 @@ module MakePoly (F : FIELD) = struct
 
   let ( *^ ) (p: t) (q: t): t =
     let n = Array.length p and m = Array.length q in
+    if n = 0 && m = 0 then [||] else
     let r = Array.make (n + m - 1) F.zero in
     for i = 0 to n - 1 do
       for j = 0 to m - 1 do
@@ -204,9 +206,9 @@ module MakePoly (F : FIELD) = struct
           if c = F.zero then None
           else
             Some (
-              if i = 0 then F.to_string c
-              else if i = 1 then Printf.sprintf "%sx" (F.to_string c)
-              else Printf.sprintf "%sx^%d" (F.to_string c) i
+              if i = 0 then Printf.sprintf "(%s)" (F.to_string c)
+              else if i = 1 then Printf.sprintf "(%s)x" (F.to_string c)
+              else Printf.sprintf "(%s)x^%d" (F.to_string c) i
             )
         ) p
         |> Array.to_list
