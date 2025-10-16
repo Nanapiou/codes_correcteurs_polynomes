@@ -10,7 +10,7 @@ module F2X = MakePoly(F2)
 module Bch15 = BchCode(struct
   module PF = F2X
   let m = 4
-  let delta = 6
+  let delta = 7
   open PF
   let primitive_p = x **^ 4 +^ x +^ one
 end)
@@ -90,7 +90,7 @@ let example_with_errors e =
   let corrupted = Array.copy cw in
   let pos = choose_positions ~n:n ~k:e in
   flip_bits corrupted pos;
-  let corrected = correct corrupted in
+  let corrected = Result.value (correct corrupted) ~default:(Array.make n 0) in
   let decoded = decode corrected in
   Array.sort compare pos; (* sort in-place for nicer printing *)
   Printf.printf "\nExample with %d error(s) (t = %d)\n" e t;
@@ -108,9 +108,10 @@ let trials n_trials errors_per_trial =
     let pos = choose_positions ~n:n ~k:errors_per_trial in
     flip_bits corrupted pos;
     let corrected =
-      try correct corrupted with Division_by_zero -> begin
-        (* print_endline @@ bitstring_of_array corrupted; *)
-        corrupted
+      try Result.value (correct corrupted) ~default:(Array.make n 0) with Division_by_zero -> begin
+        print_string "Division by zero: ";
+        print_endline @@ bitstring_of_array corrupted;
+        corrupted        
       end
     in
     let decoded = decode corrected in
@@ -122,7 +123,7 @@ let trials n_trials errors_per_trial =
 
 let () =
   Random.self_init ();
-  Printf.printf "BCH parameters: k=%d, delta=%d, n=%d, t=%d\n" k delta n t;
+  Printf.printf "BCH parameters: k=%d, delta=%d, n=%d, db=%d, t=%d\n" k delta n db t;
   Printf.printf "generator poly (full_g): %s\n" (F2X.to_string full_g);
 
   example_with_errors (t - 1);
@@ -134,7 +135,7 @@ let () =
   example_with_errors (t + 1);
 
   (* run many trials to compare empirical success for t and t+1 errors *)
-  let trials_count = 1000 in
+  let trials_count = 10000 in
   let succ_t  = trials trials_count t in
   let succ_tp1 = trials trials_count (t + 1) in
   Printf.printf "\nAfter %d random trials:\n" trials_count;

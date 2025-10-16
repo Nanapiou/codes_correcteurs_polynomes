@@ -21,7 +21,6 @@ module BchCode(P: BCH_PARAM) = struct
   let q = F.order
   let () = if q = -1 then failwith "Do not use a BCH on a non-finite field."
   let m = P.m
-  let t = delta / 2
 
   let n =
     let open Rings.IntRing in
@@ -64,6 +63,16 @@ module BchCode(P: BCH_PARAM) = struct
   let full_g =
     let open FqmX in
     PF.of_array @@ FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) full_sigma one
+
+  (* Bose distance. Not the exact minimal distance, but a good approximation. *)
+  let db =
+    let temp = ref 2 in
+    while IntSet.mem !temp full_sigma do
+      incr temp
+    done;
+    !temp - 1
+
+  let t = db / 2    
    
   let k = n - IntSet.cardinal full_sigma 
 
@@ -110,6 +119,8 @@ module BchCode(P: BCH_PARAM) = struct
     (* print_endline @@ to_string pi; *)
     (* print_string "Bi: "; *)
     (* print_endline @@ to_string bi; *)
+    let coef = constant_coeff bi in
+    if coef = Fqm.zero then Result.error bi else
     let sigma = (Fqm.inv (constant_coeff bi)) *. bi in
     let e = Array.make n Fqm.zero in 
     (* |!!!| Only works for binary BCH codes |!!!| (I guess) *)
@@ -117,5 +128,5 @@ module BchCode(P: BCH_PARAM) = struct
     Array.iteri (fun i alphap -> if eval sigma (Fqm.inv alphap) = Fqm.zero then e.(i) <- Fqm.one) alpha_powers;
     let r = r' -^ e in
     let ag = to_array r in
-    complete n ag
+    Result.ok @@ complete n ag
 end
