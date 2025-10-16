@@ -91,7 +91,7 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
     end
 
   let inv a =
-    if a = zero then failwith "Inverse of 0?" else
+    if a = zero then raise Division_by_zero else
     let (g, x, _) = egcd a p in
     if not (deg g = 0) then failwith "No inverse (not a field: q is not irreductible)"
     else (F.inv @@ constant_coeff g) *. (normalize x)
@@ -136,6 +136,7 @@ module MakePoly (F : FIELD) = struct
 
   let constant_coeff (p: t) =
     let p = normalize p in
+    if p = zero then F.zero else
     p.(0)
 
   let equal a b = normalize a = normalize b
@@ -216,8 +217,5 @@ module MakePoly (F : FIELD) = struct
       in
       String.concat " + " terms
 end
-   
-
-
-
+ 
 

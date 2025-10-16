@@ -70,6 +70,7 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
     end
 
   let inv a =
+    if a = zero then raise Division_by_zero else
     let (g, x, _) = egcd a p in
     if not (Ring.equal g one) then failwith "No inverse (not a field: q is not irreductible)"
     else normalize x

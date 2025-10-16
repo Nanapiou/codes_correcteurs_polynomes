@@ -95,20 +95,24 @@ module BchCode(P: BCH_PARAM) = struct
   let correct m =
     let open FqmX in
     let r' = of_array m in
-    let s = Array.map (eval r') sub_alpha_powers in
-    let rec build_pi ((pim, aim, bim), (pi, ai, bi)) =
-      if deg pi < t && deg pim >= t then (pi, ai, bi)
+    let s = normalize @@ Array.map (eval r') sub_alpha_powers in
+    let rec build_pi ((pim, bim), (pi, bi)) =
+      if deg pi < t then (pi, bi)
       else begin
         let (si, pip) = FqmX.euclidean_div pim pi in
-        (* Printf.printf "%s = %s * [%s] + %s" (to_string pi) (to_string si) (to_string pim) (to_string pip); *)
-        build_pi @@ ((pi, ai, bi), (pip, aim -^ si *^ ai, bim -^ si *^ bi))
+        (* Printf.printf "%s = %s * [%s] + %s\n" (to_string pim) (to_string si) (to_string pi) (to_string pip); *)
+        (* print_endline @@ string_of_bool (pim = si *^ pi +^ pip); *)
+        build_pi @@ ((pi, bi), (pip, bim -^ si *^ bi))
       end
     in
-    let (pi, _, bi) = build_pi ((x **^ (2 * t), one, zero), (s, zero, one)) in
+    let (_, bi) = build_pi ((x **^ (2 * t), zero), (s, one)) in
+    (* print_string "Pi: "; *)
     (* print_endline @@ to_string pi; *)
-    let sigma = (Fqm.inv (eval pi Fqm.zero)) *. bi in
+    (* print_string "Bi: "; *)
+    (* print_endline @@ to_string bi; *)
+    let sigma = (Fqm.inv (constant_coeff bi)) *. bi in
     let e = Array.make n Fqm.zero in 
-    (* |!!!| Only works for binary BCH codes |!!!| *)
+    (* |!!!| Only works for binary BCH codes |!!!| (I guess) *)
     if eval sigma Fqm.one = Fqm.zero then e.(0) <- Fqm.one;
     Array.iteri (fun i alphap -> if eval sigma (Fqm.inv alphap) = Fqm.zero then e.(i) <- Fqm.one) alpha_powers;
     let r = r' -^ e in
