@@ -124,7 +124,6 @@ module BchCode(P: BCH_PARAM) = struct
     let sigma = (Fqm.inv (constant_coeff bi)) *. bi in
     let e = Array.make n Fqm.zero in 
     (* |!!!| Only works for binary BCH codes |!!!| (I guess) *)
-    if eval sigma Fqm.one = Fqm.zero then e.(0) <- Fqm.one;
     Array.iteri (fun i alphap -> if eval sigma (Fqm.inv alphap) = Fqm.zero then e.(i) <- Fqm.one) alpha_powers;
     let r = r' -^ e in
     let ag = to_array r in
