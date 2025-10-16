@@ -58,11 +58,6 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
 
   module F = Ring.F
   let x = Ring.x
-  let ( +^ ) = Ring.( +^ )
-  let ( -^ ) = Ring.( -^ )
-  let ( *^ ) = Ring.( *^ )
-  let ( **^ ) = Ring.( **^ )
-  let ( *. ) = Ring.( *. )
   let deg = Ring.deg
   let leading_coeff = Ring.leading_coeff
   let constant_coeff = Ring.constant_coeff
@@ -77,6 +72,11 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let to_string = Fun.compose Ring.to_string normalize
   let of_array = Fun.compose normalize Ring.of_array
 
+  let ( +^ ) a b = normalize @@ Ring.( +^ ) a b
+  let ( -^ ) a b = normalize @@ Ring.( -^ ) a b
+  let ( *^ ) a b = normalize @@ Ring.( *^ ) a b
+  let ( **^ ) a b = normalize @@ Ring.( **^ ) a b
+  let ( *. ) a b = normalize @@ Ring.( *. ) a b
   let add a b = normalize (Ring.add a b)
   let sub a b = normalize (Ring.sub a b)
   let mul a b = normalize (Ring.mul a b)

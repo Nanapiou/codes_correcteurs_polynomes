@@ -70,7 +70,7 @@ module BchCode(P: BCH_PARAM) = struct
     while IntSet.mem !temp full_sigma do
       incr temp
     done;
-    !temp - 1
+    !temp
 
   let t = db / 2    
    
