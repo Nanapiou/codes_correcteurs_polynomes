@@ -5,6 +5,7 @@ module type EUCLIDEAN_RING = sig
   val add : t -> t -> t
   val sub : t -> t -> t
   val mul : t -> t -> t
+  val external_mul : int -> t -> t
   val exp : t -> int -> t
   val euclidean_div : t -> t -> t * t
   (* We could have use the Euclidean function conecpt, but may be unoptimized for integers *)
@@ -25,10 +26,17 @@ module IntRing : EUCLIDEAN_RING = struct
   let exp =
     let rec aux acc a n =
       if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (a * a) (n / 2)
-      else aux (acc * a) (a * a) (n / 2)
+      else if n mod 2 = 0 then aux acc (mul a a) (n / 2)
+      else aux (mul acc a) (mul a a) (n / 2)
     in
     aux 1
+  let external_mul n a =
+    let rec aux acc a n =
+      if n = 0 then acc
+      else if n mod 2 = 0 then aux acc (add a a) (n / 2)
+      else aux (add a acc) (add a a) (n / 2)
+    in
+    aux zero a n
   let normalize a b =
     let r = a mod b in
     if r < 0 then r + b else r

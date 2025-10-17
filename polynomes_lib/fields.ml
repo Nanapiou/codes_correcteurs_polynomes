@@ -5,6 +5,7 @@ module type FIELD = sig
   val zero : t
   val one : t
   val add : t -> t -> t
+  val external_mul : int -> t -> t
   val sub : t -> t -> t
   val mul : t -> t -> t
   val inv : t -> t
@@ -22,6 +23,7 @@ module FloatField : FIELD = struct
   let zero = 0.
   let one = 1.
   let add = ( +. )
+  let external_mul n f = float_of_int n *. f
   let sub = ( -. )
   let mul = ( *. )
   let inv x = 1. /. x
@@ -59,6 +61,13 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
   let add a b = normalize (Ring.add a b)
   let sub a b = normalize (Ring.sub a b)
   let mul a b = normalize (Ring.mul a b)
+  let external_mul n a =
+    let rec aux acc a n =
+      if n = 0 then acc
+      else if n mod 2 = 0 then aux acc (add a a) (n / 2)
+      else aux (add a acc) (add a a) (n / 2)
+    in
+    aux zero a n
 
   let rec egcd a b =
     if b = zero then (a, one, zero)

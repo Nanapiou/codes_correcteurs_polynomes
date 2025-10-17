@@ -114,17 +114,23 @@ module BchCode(P: BCH_PARAM) = struct
         build_pi @@ ((pi, bi), (pip, bim -^ si *^ bi))
       end
     in
-    let (_, bi) = build_pi ((x **^ (2 * t), zero), (s, one)) in
+    let (pi, bi) = build_pi ((x **^ (2 * t), zero), (s, one)) in
     (* print_string "Pi: "; *)
     (* print_endline @@ to_string pi; *)
     (* print_string "Bi: "; *)
     (* print_endline @@ to_string bi; *)
     let coef = constant_coeff bi in
     if coef = Fqm.zero then Result.error bi else
-    let sigma = (Fqm.inv (constant_coeff bi)) *. bi in
+    let coef_inv = Fqm.inv coef in
+    let sigma = coef_inv *. bi in
+    let sigma' = derive sigma in
+    let omega = coef_inv *. pi in
     let e = Array.make n Fqm.zero in 
-    (* |!!!| Only works for binary BCH codes |!!!| (I guess) *)
-    Array.iteri (fun i alphap -> if eval sigma (Fqm.inv alphap) = Fqm.zero then e.(i) <- Fqm.one) alpha_powers;
+    (* Forney algorithm *)
+    Array.iteri (fun i alphap ->
+      let alphinv = Fqm.inv alphap in 
+      if eval sigma alphinv = Fqm.zero then e.(i) <- Fqm.sub Fqm.zero @@ Fqm.div (eval omega alphinv) (eval sigma' alphinv)
+    ) alpha_powers;
     let r = r' -^ e in
     let ag = to_array r in
     Result.ok @@ complete n ag

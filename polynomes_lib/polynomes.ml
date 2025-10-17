@@ -80,7 +80,8 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let add a b = normalize (Ring.add a b)
   let sub a b = normalize (Ring.sub a b)
   let mul a b = normalize (Ring.mul a b)
-
+  let external_mul n a = normalize (Ring.external_mul n a)
+  
   let rec egcd a b =
     if b = zero then (a, one, zero)
     else begin
@@ -149,6 +150,13 @@ module MakePoly (F : FIELD) = struct
       F.add a b)
     |> normalize
   let add = ( +^ )
+  let external_mul n a =
+      let rec aux acc a n =
+        if n = 0 then acc
+        else if n mod 2 = 0 then aux acc (add a a) (n / 2)
+        else aux (add a acc) (add a a) (n / 2)
+      in
+      aux zero a n
 
   let ( -^ ) (p: t) (q: t): t =
     let n = max (Array.length p) (Array.length q) in
@@ -198,6 +206,10 @@ module MakePoly (F : FIELD) = struct
       q := !q +^ fact
     done;
     (normalize !q, normalize !r) (* I still don't fucking know why it needs to be normalized again here *)
+
+  let derive p: t =
+    let p' = Array.mapi F.external_mul p in
+    Array.sub p' 1 (deg p)    
     
   let to_string (p: t): string =
     if Array.length p = 0 then (F.to_string F.zero)
