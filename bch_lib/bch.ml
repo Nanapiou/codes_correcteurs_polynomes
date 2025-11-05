@@ -99,8 +99,9 @@ module BchCode(P: BCH_PARAM) = struct
     for i = 1 to n - 1 do
       a.(i) <- Fqm.mul alpha a.(i - 1)
     done;
-    a (* Basically contains every element of the field... Maybe use the Chien Search *)
+    a (* Basically contains every element of the field... Maybe use the Chien Search (it mays not be worth it, we're not on a hardware plan) *)
   let sub_alpha_powers = Array.sub alpha_powers 1 (2 * t)
+  (* Forney and Sugiyama algorithm *)
   let correct m =
     let open FqmX in
     let r' = of_array m in
@@ -126,7 +127,6 @@ module BchCode(P: BCH_PARAM) = struct
     let sigma' = derive sigma in
     let omega = coef_inv *. pi in
     let e = Array.make n Fqm.zero in 
-    (* Forney algorithm *)
     Array.iteri (fun i alphap ->
       let alphinv = Fqm.inv alphap in 
       if eval sigma alphinv = Fqm.zero then e.(i) <- Fqm.sub Fqm.zero @@ Fqm.div (eval omega alphinv) (eval sigma' alphinv)

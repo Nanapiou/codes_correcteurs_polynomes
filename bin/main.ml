@@ -135,7 +135,7 @@ let () =
   example_with_errors (t + 1);
 
   (* run many trials to compare empirical success for t and t+1 errors *)
-  let trials_count = 10000 in
+  let trials_count = 1000 in
   let succ_t  = trials trials_count t in
   let succ_tp1 = trials trials_count (t + 1) in
   Printf.printf "\nAfter %d random trials:\n" trials_count;
