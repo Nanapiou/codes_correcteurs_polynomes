@@ -6,13 +6,21 @@ let print_int_set s =
   IntSet.iter (Printf.printf "%d, ") s;
   print_endline "}"
 
+(* n is the length of the code, q the order of the corpse we work on, r the order of q mod n. We want n maximal, ie n = q^r - 1  *)
+(* type tnqr = 
+  | NQ of int * int 
+  | QR of int * int 
+  | NR of int * int 
+  | NQR of int * int * int *)
+
 module type BCH_PARAM = sig
   module PF : POLY_EUCLIDEAN_RING 
-  val primitive_p: PF.t (* An irreductible factor of phi_{q^m-1} *)
+  val primitive_p: PF.t (* An irreductible factor of phi_{q^m-1}, "polynome primitif de degré m" *)
 
-  val m : int
+  (* val m : int (* Should be deg(primitive_p) *) *)
   val delta : int
 end
+
 
 module BchCode(P: BCH_PARAM) = struct
   module PF = P.PF
@@ -20,7 +28,7 @@ module BchCode(P: BCH_PARAM) = struct
   let delta = P.delta 
   let q = F.order
   let () = if q = -1 then failwith "Do not use a BCH on a non-finite field."
-  let m = P.m
+  let m = PF.deg P.primitive_p
 
   let n =
     let open Rings.IntRing in
@@ -34,7 +42,7 @@ module BchCode(P: BCH_PARAM) = struct
   let alpha = Fqm.x
   (* Alpha is now a root of primitive_p *)
   
-  module ZnZ = Fields.MakeExtendedField(struct
+  module ZnZ = Fields.MakeExtendedField(struct (* Not a field but I swear I don't use inv *)
     module Ring = Rings.IntRing
     let p = Ring.of_int n
   end)
@@ -83,7 +91,7 @@ module BchCode(P: BCH_PARAM) = struct
 
   let encode a =
     if Array.length a <> k then failwith "Only accept messages of length k" else
-    let open PF in
+    let open PF in 
     let ag = to_array @@ (of_array a) *^ full_g in
     complete n ag
 

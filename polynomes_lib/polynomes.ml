@@ -150,13 +150,13 @@ module MakePoly (F : FIELD) = struct
       F.add a b)
     |> normalize
   let add = ( +^ )
-  let external_mul n a =
-      let rec aux acc a n =
+  let external_mul n a = Array.map (F.external_mul n) a
+      (* let rec aux acc a n =
         if n = 0 then acc
         else if n mod 2 = 0 then aux acc (add a a) (n / 2)
         else aux (add a acc) (add a a) (n / 2)
       in
-      aux zero a n
+      aux zero a n *)
 
   let ( -^ ) (p: t) (q: t): t =
     let n = max (Array.length p) (Array.length q) in

@@ -7,15 +7,24 @@ module F2 = Fields.MakeExtendedField(struct
 end)
 module F2X = MakePoly(F2)
 
+module H7_4 = BchCode(struct (* Hamming code (7, 4) *)
+  module PF = F2X
+    
+  let delta = 2 
+  open PF 
+
+  let primitive_p = x **^ 3 +^ x +^ one
+end)
+
 module Bch15 = BchCode(struct
   module PF = F2X
-  let m = 4
-  let delta = 7
+  (* let m = 4 *)
+  let delta = 2
   open PF
   let primitive_p = x **^ 4 +^ x +^ one
 end)
 
-open Bch15
+open Bch15 
 
 (* ---------- helpers ---------- *)
 
@@ -119,12 +128,15 @@ let trials n_trials errors_per_trial =
   done;
   !succ
 
+let set_to_string s = "{" ^ (IntSet.fold (fun e acc -> acc ^ ", " ^ (string_of_int e)) s "") ^ "}"
+
 (* ---------- main ---------- *)
 
 let () =
   Random.self_init ();
-  Printf.printf "BCH parameters: k=%d, delta=%d, n=%d, db=%d, t=%d\n" k delta n db t;
+  Printf.printf "BCH parameters: k=%d, delta=%d, n=%d, q=%d, r=%d, db=%d, t=%d\n" k delta n q m db t;
   Printf.printf "generator poly (full_g): %s\n" (F2X.to_string full_g);
+  Printf.printf "sigma: %s\n" (set_to_string full_sigma);
 
   example_with_errors (t - 1);
 

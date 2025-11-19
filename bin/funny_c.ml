@@ -13,7 +13,5 @@ let one = C.one
 let i = C.of_int 1
 
 let () =
-  print_string @@ C.to_string (C.mul i i);
-  print_newline ();
-  print_string @@ C.to_string (C.inv (C.sub one i));
-  print_newline ()
+  print_endline @@ C.to_string (C.mul i i);
+  print_endline @@ C.to_string (C.inv (C.sub one i))
