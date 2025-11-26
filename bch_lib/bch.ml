@@ -89,17 +89,35 @@ module BchCode(P: BCH_PARAM) = struct
     Array.iteri (fun i v -> full.(i) <- v) a;
     full
 
-  let encode a =
+  let encode_mul a =
     if Array.length a <> k then failwith "Only accept messages of length k" else
     let open PF in 
     let ag = to_array @@ (of_array a) *^ full_g in
     complete n ag
 
-  let decode ag =
+  let decode_mul ag =
     if Array.length ag > n then failwith "Only decode messages of length n" else
     let (a, _) = PF.euclidean_div (PF.of_array ag) full_g in
     let a = PF.to_array a in
     complete k a
+
+  let encode_sys a =
+    if Array.length a <> k then failwith "Only accept messages of length k" else
+    let open PF in 
+    let temp =  Array.make n 0 in (* Temp is a * X^{n-k} *)
+    Array.blit a 0 temp (n - k) k;
+    let temp = of_array temp in
+    let (_, r) = euclidean_div temp full_g in 
+    complete n @@ to_array (temp -^ r) 
+
+  let decode_sys p = 
+    if Array.length p > n then failwith "Only decode messages of length n" else
+    Array.sub p (n - k) k
+
+
+  let encode = encode_sys 
+  let decode = decode_sys
+  
 
   let alpha_powers =
     let a = Array.make n Fqm.zero in

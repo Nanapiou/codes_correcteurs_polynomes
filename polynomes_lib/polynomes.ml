@@ -210,6 +210,14 @@ module MakePoly (F : FIELD) = struct
   let derive p: t =
     let p' = Array.mapi F.external_mul p in
     Array.sub p' 1 (deg p)    
+
+  let reciprocal (p: t): t =
+    let d = deg p in
+    let p' = Array.make (d + 1) F.zero in 
+    for i = 0 to d do 
+      p'.(d - i) <- p.(i)
+    done;
+    normalize p'
     
   let to_string (p: t): string =
     if Array.length p = 0 then (F.to_string F.zero)
