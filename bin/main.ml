@@ -1,158 +1,71 @@
 open Polynomes
 open Bch
 
+module RX = MakePoly(Fields.FloatField)
+
 module F2 = Fields.MakeExtendedField(struct
   module Ring = Rings.IntRing
   let p = Ring.of_int 2
 end)
 module F2X = MakePoly(F2)
 
+
+module F16 =  Polynomes.MakePolyExtendedField(struct
+  module Ring = F2X 
+
+  open Ring
+  let p = x **^ 4 +^ x +^ one
+end)
+module F16X = MakePoly(F16)
+
+module RS15_11 = BchCode(struct
+  module FqX = F16X
+
+  let delta = 3
+
+  open FqX
+  let primitive_p = x -^ (F16.x *. one)
+end)
+
 module H7_4 = BchCode(struct (* Hamming code (7, 4) *)
-  module PF = F2X
+  module FqX = F2X
     
   let delta = 2 
-  open PF 
+  open FqX 
 
   let primitive_p = x **^ 3 +^ x +^ one
 end)
 
 module Bch15 = BchCode(struct
-  module PF = F2X
+  module FqX = F2X
   (* let m = 4 *)
   let delta = 2
-  open PF
+  open FqX
   let primitive_p = x **^ 4 +^ x +^ one
 end)
 
-open Bch15 
+open RS15_11
+open F16X
 
-(* ---------- helpers ---------- *)
+let f =
+  let table = F16.of_int in
+  (table 13) *. (x **^ 4) +^ (table 1) *. (x **^ 3) +^ (table 8) *. (x **^ 2) +^ (table 12) *. x +^ (table 3) *. one
+  
+let print_f16x p =
+  let pretty_p: RX.t = Obj.magic @@ Array.map float_of_int @@ Array.map F16.to_int p in 
+  print_endline (RX.to_string pretty_p)
 
-let bitstring_of_array a =
-  let buf = Buffer.create (Array.length a) in
-  Array.iter (fun x -> Buffer.add_char buf (if x = 0 then '0' else '1')) a;
-  Buffer.contents buf
+let ef = encode f
+let () =
+  print_f16x ef
 
-let indices_of_ones arr =
-  let buf = Buffer.create 32 in
-  Buffer.add_char buf '[';
-  let first = ref true in
-  Array.iteri (fun i v ->
-    if v <> 0 then (
-      if not !first then Buffer.add_string buf ", ";
-      first := false;
-      Buffer.add_string buf (string_of_int i)
-    )
-  ) arr;
-  Buffer.add_char buf ']';
-  Buffer.contents buf
 
-let string_of_positions pos_arr =
-  if Array.length pos_arr = 0 then "[]"
-  else
-    let buf = Buffer.create (Array.length pos_arr * 3) in
-    Buffer.add_char buf '[';
-    Array.iteri (fun i v ->
-      if i > 0 then Buffer.add_string buf ", ";
-      Buffer.add_string buf (string_of_int v)
-    ) pos_arr;
-    Buffer.add_char buf ']';
-    Buffer.contents buf
-
-let shuffle_inplace a =
-  for i = Array.length a - 1 downto 1 do
-    let j = Random.int (i + 1) in
-    let tmp = a.(i) in a.(i) <- a.(j); a.(j) <- tmp
-  done
-
-let choose_positions ~n ~k =
-  if k <= 0 then [||]
-  else if k >= n then Array.init n (fun i -> i)
-  else
-    let arr = Array.init n (fun i -> i) in
-    shuffle_inplace arr;
-    Array.init k (fun i -> arr.(i))
-
-let flip_bits code pos_arr =
-  Array.iter (fun p -> code.(p) <- 1 - code.(p)) pos_arr
-
-let random_message () =
-  Array.init k (fun _ -> if Random.bool () then 1 else 0)
-
-let print_case ~prefix ~msg ~cw ~corrupted ~corrected ~decoded =
-  Printf.printf "\n%s\n" prefix;
-  Printf.printf " msg      : %s\n" (bitstring_of_array msg);
-  Printf.printf " encoded  : %s\n" (bitstring_of_array cw);
-  let diff = Array.init (Array.length cw) (fun i -> if cw.(i) = corrupted.(i) then 0 else 1) in
-  Printf.printf " corrupted: %s (errors at %s)\n"
-    (bitstring_of_array corrupted) (indices_of_ones diff);
-  Printf.printf " corrected: %s\n" (bitstring_of_array corrected);
-  Printf.printf " decoded  : %s\n" (bitstring_of_array decoded);
-  let success = Array.length decoded = Array.length msg && Array.for_all2 (=) msg decoded in
-  Printf.printf " success? %b\n" success
-
-(* ---------- single examples ---------- *)
-
-let example_with_errors e =
-  let msg = random_message () in
-  let cw = encode msg in
-  let corrupted = Array.copy cw in
-  let pos = choose_positions ~n:n ~k:e in
-  flip_bits corrupted pos;
-  let corrected = Result.value (correct corrupted) ~default:(Array.make n 0) in
-  let decoded = decode corrected in
-  Array.sort compare pos; (* sort in-place for nicer printing *)
-  Printf.printf "\nExample with %d error(s) (t = %d)\n" e t;
-  Printf.printf " error positions: %s\n" (string_of_positions pos);
-  print_case ~prefix:"---" ~msg ~cw ~corrupted ~corrected ~decoded
-
-(* ---------- trials to estimate empirical success rate ---------- *)
-
-let trials n_trials errors_per_trial =
-  let succ = ref 0 in
-  for _ = 1 to n_trials do
-    let msg = random_message () in
-    let cw = encode msg in
-    let corrupted = Array.copy cw in
-    let pos = choose_positions ~n:n ~k:errors_per_trial in
-    flip_bits corrupted pos;
-    let corrected =
-      try Result.value (correct corrupted) ~default:(Array.make n 0) with Division_by_zero -> begin
-        print_string "Division by zero: ";
-        print_endline @@ bitstring_of_array corrupted;
-        corrupted        
-      end
-    in
-    let decoded = decode corrected in
-    if Array.length decoded = Array.length msg && Array.for_all2 (=) msg decoded then incr succ
-  done;
-  !succ
-
-let set_to_string s = "{" ^ (IntSet.fold (fun e acc -> acc ^ ", " ^ (string_of_int e)) s "") ^ "}"
-
-(* ---------- main ---------- *)
+let () = ef.(3) <- F16.one
+let () =
+  print_f16x ef
+let cef = match correct ef with 
+| Result.Ok p -> p 
+| Result.Error _ -> failwith "Error while correcting"
 
 let () =
-  Random.self_init ();
-  Printf.printf "BCH parameters: k=%d, delta=%d, n=%d, q=%d, r=%d, db=%d, t=%d\n" k delta n q m db t;
-  Printf.printf "generator poly (full_g): %s\n" (F2X.to_string full_g);
-  Printf.printf "sigma: %s\n" (set_to_string full_sigma);
-
-  example_with_errors (t - 1);
-
-  (* show one example with exactly t errors (should be corrected) *)
-  example_with_errors t;
-
-  (* show one example with t+1 errors (may fail) *)
-  example_with_errors (t + 1);
-
-  (* run many trials to compare empirical success for t and t+1 errors *)
-  let trials_count = 1000 in
-  let succ_t  = trials trials_count t in
-  let succ_tp1 = trials trials_count (t + 1) in
-  Printf.printf "\nAfter %d random trials:\n" trials_count;
-  Printf.printf " corrected when <= t errors : %d / %d (%.2f%%)\n"
-    succ_t trials_count (100. *. float_of_int succ_t /. float_of_int trials_count);
-  Printf.printf " corrected when t+1 errors  : %d / %d (%.2f%%)\n"
-    succ_tp1 trials_count (100. *. float_of_int succ_tp1 /. float_of_int trials_count);
-  ()
+  print_f16x cef

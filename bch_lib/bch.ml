@@ -14,8 +14,8 @@ let print_int_set s =
   | NQR of int * int * int *)
 
 module type BCH_PARAM = sig
-  module PF : POLY_EUCLIDEAN_RING 
-  val primitive_p: PF.t (* An irreductible factor of phi_{q^m-1}, "polynome primitif de degré m" *)
+  module FqX : POLY_EUCLIDEAN_RING 
+  val primitive_p: FqX.t (* An irreductible factor of phi_{q^m-1}, "polynome primitif de degré m" *)
 
   (* val m : int (* Should be deg(primitive_p) *) *)
   val delta : int
@@ -23,19 +23,19 @@ end
 
 
 module BchCode(P: BCH_PARAM) = struct
-  module PF = P.PF
-  module F = PF.F
+  module FqX = P.FqX
+  module Fq = FqX.F
   let delta = P.delta 
-  let q = F.order
+  let q = Fq.order
   let () = if q = -1 then failwith "Do not use a BCH on a non-finite field."
-  let m = PF.deg P.primitive_p
+  let m = FqX.deg P.primitive_p
 
   let n =
     let open Rings.IntRing in
     to_int (exp (of_int q) m) - 1
 
   module Fqm = MakePolyExtendedField(struct
-    module Ring = PF
+    module Ring = FqX
     let p = P.primitive_p
   end)
   module FqmX = MakePoly(Fqm) 
@@ -57,20 +57,15 @@ module BchCode(P: BCH_PARAM) = struct
     in
     IntSet.of_list (List.map ZnZ.to_int (aux [i]))
 
-  let g i =
+  let g i: FqX.t =
     let open FqmX in
-    (* The FqmX.to_array works as follow:
-      The calculated polynome is a polynome on a polynome fields.
-      Due to maths things, every coefficient is a constant polynome (cuz it works, cf <Cours d'algebre Demazure 9.2.3 "Classes cyclotomiques">)
-      The to_array just applies to_int on every coefficient. But to_int of a polynome gives its constant coefficient.
-      Then it works, we just convert it back to a PF element
-     *)
-    PF.of_array @@ FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) (sigma i) one
+    Array.map Fqm.constant_coeff @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) (sigma i) one
 
   let full_sigma = List.fold_left (fun acc i -> IntSet.union acc (sigma i)) IntSet.empty (List.init (delta - 1) ((+) 1))
-  let full_g =
+  (* Generator of the code *)
+  let full_g: FqX.t =
     let open FqmX in
-    PF.of_array @@ FqmX.to_array @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) full_sigma one
+    Array.map Fqm.constant_coeff @@ IntSet.fold (fun l acc -> acc *^ (x -^ ((alpha *. one) **^ l))) full_sigma one
 
   (* Bose distance. Not the exact minimal distance, but a good approximation. *)
   let db =
@@ -80,6 +75,7 @@ module BchCode(P: BCH_PARAM) = struct
     done;
     !temp
 
+  (* Number of errors it can correct *)
   let t = db / 2    
    
   let k = n - IntSet.cardinal full_sigma 
@@ -90,30 +86,28 @@ module BchCode(P: BCH_PARAM) = struct
     full
 
   let encode_mul a =
-    if Array.length a <> k then failwith "Only accept messages of length k" else
-    let open PF in 
-    let ag = to_array @@ (of_array a) *^ full_g in
-    complete n ag
+    let open FqX in 
+    if deg a >= k then failwith "Only accept messages of length k" else
+    a *^ full_g 
 
   let decode_mul ag =
-    if Array.length ag > n then failwith "Only decode messages of length n" else
-    let (a, _) = PF.euclidean_div (PF.of_array ag) full_g in
-    let a = PF.to_array a in
-    complete k a
+    let open FqX in 
+    if deg ag >= n then failwith "Only decode messages of length n" else
+    let (a, _) = FqX.euclidean_div ag full_g in
+    a
 
+  let xnk = FqX.exp FqX.x (n - k)
   let encode_sys a =
-    if Array.length a <> k then failwith "Only accept messages of length k" else
-    let open PF in 
-    let temp =  Array.make n 0 in (* Temp is a * X^{n-k} *)
-    Array.blit a 0 temp (n - k) k;
-    let temp = of_array temp in
+    let open FqX in 
+    if deg a >= k then failwith "Only accept messages of length k" else
+    let temp = a *^ xnk in
     let (_, r) = euclidean_div temp full_g in 
-    complete n @@ to_array (temp -^ r) 
+    temp -^ r
 
-  let decode_sys p = 
-    if Array.length p > n then failwith "Only decode messages of length n" else
+  let decode_sys p: FqX.t = 
+    let open FqX in
+    if deg p >= n then failwith "Only decode messages of length n" else
     Array.sub p (n - k) k
-
 
   let encode = encode_sys 
   let decode = decode_sys
@@ -128,9 +122,10 @@ module BchCode(P: BCH_PARAM) = struct
     a (* Basically contains every element of the field... Maybe use the Chien Search (it mays not be worth it, we're not on a hardware plan) *)
   let sub_alpha_powers = Array.sub alpha_powers 1 (2 * t)
   (* Forney and Sugiyama algorithm *)
-  let correct m =
+  let correct (r': FqX.t): (FqX.t, FqmX.t) result=
     let open FqmX in
-    let r' = of_array m in
+    (* Considering it as a Fqm[X] element in order to calculate syndromes *)
+    let r': FqmX.t = Array.map (fun c -> FqX.( *. ) c FqX.x) r' in
     let s = normalize @@ Array.map (eval r') sub_alpha_powers in
     let rec build_pi ((pim, bim), (pi, bi)) =
       if deg pi < t then (pi, bi)
@@ -152,12 +147,10 @@ module BchCode(P: BCH_PARAM) = struct
     let sigma = coef_inv *. bi in
     let sigma' = derive sigma in
     let omega = coef_inv *. pi in
-    let e = Array.make n Fqm.zero in 
+    let e: FqmX.t = Array.make n Fqm.zero in 
     Array.iteri (fun i alphap ->
       let alphinv = Fqm.inv alphap in 
       if eval sigma alphinv = Fqm.zero then e.(i) <- Fqm.sub Fqm.zero @@ Fqm.div (eval omega alphinv) (eval sigma' alphinv)
     ) alpha_powers;
-    let r = r' -^ e in
-    let ag = to_array r in
-    Result.ok @@ complete n ag
+    Result.ok @@ Array.map Fqm.constant_coeff (r' -^ e)
 end

@@ -5,8 +5,8 @@ module Fields = Fields
 module Rings = Rings
 
 module type POLY_EUCLIDEAN_RING = sig
-  include EUCLIDEAN_RING
   module F : FIELD
+  include EUCLIDEAN_RING with type t = F.t array
   val x : t
   val ( +^ ) : t -> t -> t
   val ( -^ ) : t -> t -> t
@@ -17,27 +17,17 @@ module type POLY_EUCLIDEAN_RING = sig
   val deg : t -> int
   val leading_coeff : t -> F.t
   val constant_coeff : t -> F.t
+  val normalize : t -> t
+  val derive : t -> t 
+  val reciprocal : t -> t
   val of_array : int array -> t
   val to_array : t -> int array
 end
 
 (* A set of polynomes which is a field, need to works mod P with P irreductible *)
 module type POLY_FIELD = sig
-  include FIELD
-  module F : FIELD 
-  val x : t
-  val ( +^ ) : t -> t -> t
-  val ( -^ ) : t -> t -> t
-  val ( *^ ) : t -> t -> t
-  val ( **^ ) : t -> int -> t
-  val ( *. ) : F.t -> t -> t
-  val eval : t -> F.t -> F.t
-  val deg : t -> int
-  val leading_coeff : t -> F.t
-  val constant_coeff : t -> F.t
-  val of_array : int array -> t
-  val to_array : t -> int array
-  val euclidean_div : t -> t -> t * t
+  include POLY_EUCLIDEAN_RING
+  include FIELD with type t = F.t array
 end
 
 module type POLY_EXTENDED_FIELD_PARAM = sig
@@ -46,12 +36,12 @@ module type POLY_EXTENDED_FIELD_PARAM = sig
 end
 
 module type POLY_EXTENDED_FIELD = sig
-  include POLY_FIELD
   module Ring : POLY_EUCLIDEAN_RING
+  include POLY_FIELD with module F := Ring.F
   val p : Ring.t
 end
 
-module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD = struct
+module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD with module Ring = P.Ring = struct
   module Ring = P.Ring
   let p = P.p
   type t = Ring.t
@@ -62,6 +52,7 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let leading_coeff = Ring.leading_coeff
   let constant_coeff = Ring.constant_coeff
   let eval = Ring.eval
+  let reciprocal = Ring.reciprocal
   let to_array = Ring.to_array
   let to_int = Ring.to_int
 
@@ -81,6 +72,8 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let sub a b = normalize (Ring.sub a b)
   let mul a b = normalize (Ring.mul a b)
   let external_mul n a = normalize (Ring.external_mul n a)
+  let exp a n = normalize (Ring.exp a n)
+  let derive = Fun.compose normalize Ring.derive
   
   let rec egcd a b =
     if b = zero then (a, one, zero)
@@ -94,7 +87,7 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let inv a =
     if a = zero then raise Division_by_zero else
     let (g, x, _) = egcd a p in
-    if not (deg g = 0) then failwith "No inverse (not a field: q is not irreductible)"
+    if not (deg g = 0) then failwith "No inverse (not a field: p is not irreductible)"
     else (F.inv @@ constant_coeff g) *. (normalize x)
 
   let div a b = mul a (inv b)
@@ -107,15 +100,13 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
     else IntRing.to_int @@ IntRing.exp (IntRing.of_int F.order) (deg p)
 end 
 
-module MakePoly (F : FIELD) = struct
+module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
   module F = F
   type t = F.t array
 
   let x = [|F.zero; F.one|]
   let one = [|F.one|]
   let zero = [||]
-  let of_int x = [|F.of_int x|]
-  let of_array = Array.map F.of_int
 
   let deg (p: t): int = Array.length p - 1
   
@@ -126,9 +117,6 @@ module MakePoly (F : FIELD) = struct
     done;
     Array.sub p 0 !n
 
-  let to_int p =
-    let p = normalize p in
-    if deg p < 0 then 0 else F.to_int p.(0)
   let to_array = Array.map F.to_int
 
   let leading_coeff (p: t) =
@@ -192,6 +180,7 @@ module MakePoly (F : FIELD) = struct
     
   let eval (p: t) (x: F.t): F.t =
     Array.fold_right (fun coeff acc -> F.add coeff (F.mul x acc)) p F.zero
+  
    
   let euclidean_div (a: t) (b: t): t * t =
     let a = normalize a in
@@ -218,6 +207,26 @@ module MakePoly (F : FIELD) = struct
       p'.(d - i) <- p.(i)
     done;
     normalize p'
+
+  
+
+  let to_int p =
+    if F.order = -1 then F.to_int (constant_coeff p) else
+    let q = F.order in 
+    Array.fold_right (fun coeff acc -> F.to_int coeff + (acc * q)) p 0
+
+  let of_int a =
+    if F.order = -1 then [|F.of_int a|] else
+    let q = F.order in 
+    let rec build_list a =
+      if a = 0 then []
+      else 
+        let (k, l) = (a / q, a mod q) in 
+        F.of_int l :: build_list k 
+    in
+    Array.of_list @@ build_list a 
+    
+  let of_array = Array.map F.of_int
     
   let to_string (p: t): string =
     if Array.length p = 0 then (F.to_string F.zero)

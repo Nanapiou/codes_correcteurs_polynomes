@@ -18,7 +18,7 @@ module type FIELD = sig
   val order : int (* -1 if infinite *)
 end
 
-module FloatField : FIELD = struct
+module FloatField: FIELD = struct
   type t = float
   let zero = 0.
   let one = 1.
