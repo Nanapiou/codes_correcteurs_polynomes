@@ -125,7 +125,7 @@ module BchCode(P: BCH_PARAM) = struct
   let correct (r': FqX.t): (FqX.t, FqmX.t) result=
     let open FqmX in
     (* Considering it as a Fqm[X] element in order to calculate syndromes *)
-    let r': FqmX.t = Array.map (fun c -> FqX.( *. ) c FqX.x) r' in
+    let r': FqmX.t = Array.map (fun c -> FqX.( *. ) c FqX.one) r' in
     let s = normalize @@ Array.map (eval r') sub_alpha_powers in
     let rec build_pi ((pim, bim), (pi, bi)) =
       if deg pi < t then (pi, bi)

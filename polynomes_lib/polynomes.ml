@@ -242,7 +242,7 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
             )
         ) p
         |> Array.to_list
-        |> List.filter_map (fun x -> x)
+        |> List.filter_map Fun.id
       in
       String.concat " + " terms
 end

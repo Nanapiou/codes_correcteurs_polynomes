@@ -59,13 +59,21 @@ let ef = encode f
 let () =
   print_f16x ef
 
+let e = x **^ 4
 
-let () = ef.(3) <- F16.one
+let errored = ef +^ e
 let () =
-  print_f16x ef
-let cef = match correct ef with 
+  print_f16x errored
+let cef = match correct errored with 
 | Result.Ok p -> p 
 | Result.Error _ -> failwith "Error while correcting"
 
+let (q, r) = euclidean_div errored full_g 
+
 let () =
-  print_f16x cef
+  print_f16x cef;
+  print_newline ();
+  print_f16x q;
+  print_f16x r;
+  print_f16x (snd (euclidean_div e full_g));
+  print_f16x (snd (euclidean_div cef full_g))
