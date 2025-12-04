@@ -1,2 +1,3 @@
 (library
- (name polynomes))
+ (name polynomes)
+ (libraries algebric_structures))

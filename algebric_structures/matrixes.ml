@@ -1,0 +1,144 @@
+open Fields
+open Rings
+
+module type MATRIXES_RING = sig
+  module F : FIELD
+  include RING with type t = F.t array array
+  val ( +^ ) : t -> t -> t
+  val ( -^ ) : t -> t -> t
+  val ( *^ ) : t -> t -> t
+  val ( **^ ) : t -> int -> t
+  val ( *. ) : F.t -> t -> t
+  val apply : t -> F.t array -> F.t array
+  val of_int_matrix : int array array -> t
+  val to_int_matrix : t -> int array array
+end
+
+module type MATRIXES_PARAM = sig
+  module F : FIELD
+  val n : int
+end
+
+module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = struct
+  module F = P.F 
+  let n = P.n 
+  type t = F.t array array
+
+  let zero = Array.make_matrix n n F.zero
+  let one = Array.init_matrix n n (fun i j -> if i = j then F.one else F.zero)
+  
+  let map_matrixes (f: 'a list -> 'b) (matrixes: ('a array array) list): 'b array array =
+    let c = Array.make_matrix n n (f (List.map (fun m -> m.(0).(0)) matrixes)) in 
+    for i = 0 to n - 1 do 
+      for j = 0 to n - 1 do 
+        c.(i).(j) <- f (List.map (fun m -> m.(i).(j)) matrixes)
+      done
+    done;
+    c
+
+  let apply (m: t) (x: F.t array): F.t array = 
+    let y = Array.make n F.zero in 
+    for i = 0 to n - 1 do 
+      let t = ref F.zero in
+      for j = 0 to n - 1 do 
+        t := F.add !t (F.mul m.(i).(j) x.(i))
+      done;
+      y.(i) <- !t
+    done;
+    y
+
+  let add (a: t) (b: t): t =
+    map_matrixes (function
+    | [x; y] -> F.add x y
+    | _ -> failwith "Not two matrixes?"
+    ) [a; b]
+
+  let sub (a: t) (b: t): t =
+    map_matrixes (function
+    | [x; y] -> F.sub x y
+    | _ -> failwith "Not two matrixes?"
+    ) [a; b]
+
+  let mul (a: t) (b: t): t = 
+    let c = Array.copy zero in 
+    for i = 0 to n - 1 do
+      for j = 0 to n - 1 do
+        let t = ref F.zero in
+        for k = 0 to n - 1 do
+          t := F.add !t (F.mul a.(i).(k) b.(k).(j))
+        done;
+        c.(i).(j) <- !t
+      done
+    done;
+    c
+
+  let external_mul (b: int) (a: t): t =
+    map_matrixes (function
+    | [x] -> F.external_mul b x
+    | _ -> failwith "Not one matrixes?"
+    ) [a]
+
+  let exp a n: t =
+    let rec aux acc a n =
+      if n = 0 then acc
+      else if n mod 2 = 0 then aux acc (mul a a) (n / 2)
+      else aux (mul acc a) (mul a a) (n / 2)
+    in
+    aux one a n
+
+  let ( *. ) (b: F.t) (a: t): t =
+    map_matrixes (function
+    | [x] -> F.mul b x
+    | _ -> failwith "Not one matrixes?"
+    ) [a]
+
+  let equal: t -> t -> bool = Array.for_all2 (Array.for_all2 ( = ))
+
+  let ( +^ ) = add
+  let ( -^ ) = sub
+  let ( *^ ) = mul
+  let ( **^ ) = exp
+
+  let of_int a = external_mul a one 
+  let to_int _ = failwith "Who the hell wants to convert a matrix to an int??? What are you expecting?"
+
+  let of_int_matrix (a: int array array): t =
+    map_matrixes (function
+    | [x] -> F.of_int x
+    | _ -> failwith "Not one matrixes?"
+    ) [a]
+
+  let to_int_matrix (a: t): int array array =
+    map_matrixes (function
+    | [x] -> F.to_int x
+    | _ -> failwith "Not one matrixes?"
+    ) [a]
+
+  let pp_matrix fmt m =
+    let open Format in
+    if Array.length m = 0 then fprintf fmt "[||]"
+    else (
+      (* Precompute string matrix + column widths *)
+      let str = Array.map (Array.map F.to_string) m in
+      let cols = Array.length str.(0) in
+      let widths =
+        Array.init cols (fun j ->
+          Array.fold_left (fun acc row -> max acc (String.length row.(j))) 0 str
+        )
+      in
+      fprintf fmt "@[<v>";
+      Array.iter (fun row ->
+        fprintf fmt "[| ";
+        Array.iteri (fun j x ->
+          let w = widths.(j) in
+          fprintf fmt "%*s" w x;
+          if j < cols - 1 then fprintf fmt " ; "
+        ) row;
+        fprintf fmt " |]@,"
+      ) str;
+      fprintf fmt "@]"
+    )
+
+  let to_string m =
+    Format.asprintf "%a" pp_matrix m
+end

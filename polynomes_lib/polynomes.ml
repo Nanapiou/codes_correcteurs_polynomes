@@ -1,3 +1,4 @@
+open Algebric_structures
 open Fields
 open Rings
 
@@ -20,6 +21,7 @@ module type POLY_EUCLIDEAN_RING = sig
   val normalize : t -> t
   val derive : t -> t 
   val reciprocal : t -> t
+  val berlekamp : t -> t
   val of_array : int array -> t
   val to_array : t -> int array
 end
@@ -74,6 +76,7 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let external_mul n a = normalize (Ring.external_mul n a)
   let exp a n = normalize (Ring.exp a n)
   let derive = Fun.compose normalize Ring.derive
+  let berlekamp = Fun.compose normalize Ring.berlekamp
   
   let rec egcd a b =
     if b = zero then (a, one, zero)
@@ -208,6 +211,8 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
     done;
     normalize p'
 
+
+  let berlekamp _ = assert false
   
 
   let to_int p =

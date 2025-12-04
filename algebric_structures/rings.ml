@@ -1,4 +1,4 @@
-module type EUCLIDEAN_RING = sig
+module type RING = sig
   type t
   val zero : t
   val one : t
@@ -7,12 +7,16 @@ module type EUCLIDEAN_RING = sig
   val mul : t -> t -> t
   val external_mul : int -> t -> t
   val exp : t -> int -> t
-  val euclidean_div : t -> t -> t * t
-  (* We could have use the Euclidean function conecpt, but may be unoptimized for integers *)
   val equal : t -> t -> bool
   val of_int : int -> t
   val to_int : t -> int
   val to_string : t -> string
+end
+
+module type EUCLIDEAN_RING = sig
+  include RING
+  val euclidean_div : t -> t -> t * t
+  (* We could have use the Euclidean function conecpt, but may be unoptimized for integers *)
 end
 
 
