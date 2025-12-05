@@ -9,6 +9,9 @@ module type MATRIXES_RING = sig
   val ( *^ ) : t -> t -> t
   val ( **^ ) : t -> int -> t
   val ( *. ) : F.t -> t -> t
+  val row_switch : t -> int -> int -> unit 
+  val row_mul : ?elementary:bool -> t -> int -> F.t -> unit 
+  val row_addition : ?elementary:bool -> t -> int -> F.t -> int -> unit
   val apply : t -> F.t array -> F.t array
   val of_int_matrix : int array array -> t
   val to_int_matrix : t -> int array array
@@ -80,6 +83,17 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
   let of_int_matrix: int array array -> t = Array.map (Array.map F.of_int)
 
   let to_int_matrix: t -> int array array = Array.map (Array.map F.to_int)
+
+  let row_switch (m: t) i j =
+    let t = m.(i) in
+    m.(i) <- m.(j);
+    m.(j) <- t
+  let row_mul ?(elementary=true) m i x =
+    assert (not elementary || (not (F.equal x F.zero)));
+    Array.map_inplace (F.mul x) m.(i)
+  let row_addition ?(elementary=true) m i x j =
+    assert (not elementary || i <> j); 
+    Array.mapi_inplace (fun k a -> F.add a (F.mul x m.(j).(k))) m.(i)
 
   let pp_matrix fmt m =
     let open Format in

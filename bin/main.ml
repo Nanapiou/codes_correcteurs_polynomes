@@ -32,5 +32,8 @@ let m = of_int_matrix [|
   [| 7; 8; 9 |]
 |]
 
+let () =
+  row_addition m 0 (FloatField.of_int 5) 1
+
 let () = 
-  print_endline @@ to_string (mul m m)
+  print_endline @@ to_string m
