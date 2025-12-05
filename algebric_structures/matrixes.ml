@@ -12,6 +12,7 @@ module type MATRIXES_RING = sig
   val row_switch : t -> int -> int -> unit 
   val row_mul : ?elementary:bool -> t -> int -> F.t -> unit 
   val row_addition : ?elementary:bool -> t -> int -> F.t -> int -> unit
+  val gaussian_elimination : t -> t
   val apply : t -> F.t array -> F.t array
   val of_int_matrix : int array array -> t
   val to_int_matrix : t -> int array array
@@ -94,6 +95,30 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
   let row_addition ?(elementary=true) m i x j =
     assert (not elementary || i <> j); 
     Array.mapi_inplace (fun k a -> F.add a (F.mul x m.(j).(k))) m.(i)
+
+  let gaussian_elimination (m: t): t =
+    let cp = Array.map (Array.copy) m in 
+    let r = ref (-1) in (* Last pivot index *)
+    for j = 0 to n - 1 do 
+      let dif0 x = not (F.equal x F.zero) in
+      let k = ref None in 
+      for i = !r + 1 to n - 1 do 
+        if dif0 cp.(i).(j) then begin
+          k := Some i;
+        end
+      done;
+      match !k with
+      | None -> ()
+      | Some k -> begin 
+        incr r;
+        row_mul cp k (F.inv cp.(k).(j));
+        if k <> !r then row_switch cp k !r;
+        for i = 0 to n - 1 do
+          if i <> !r then row_addition cp i (F.sub F.zero cp.(i).(j)) !r
+        done
+      end
+    done;
+    cp
 
   let pp_matrix fmt m =
     let open Format in
