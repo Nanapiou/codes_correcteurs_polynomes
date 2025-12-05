@@ -26,15 +26,6 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
 
   let zero = Array.make_matrix n n F.zero
   let one = Array.init_matrix n n (fun i j -> if i = j then F.one else F.zero)
-  
-  let map_matrixes (f: 'a list -> 'b) (matrixes: ('a array array) list): 'b array array =
-    let c = Array.make_matrix n n (f (List.map (fun m -> m.(0).(0)) matrixes)) in 
-    for i = 0 to n - 1 do 
-      for j = 0 to n - 1 do 
-        c.(i).(j) <- f (List.map (fun m -> m.(i).(j)) matrixes)
-      done
-    done;
-    c
 
   let apply (m: t) (x: F.t array): F.t array = 
     let y = Array.make n F.zero in 
@@ -47,17 +38,9 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
     done;
     y
 
-  let add (a: t) (b: t): t =
-    map_matrixes (function
-    | [x; y] -> F.add x y
-    | _ -> failwith "Not two matrixes?"
-    ) [a; b]
+  let add: t -> t -> t = Array.map2 (Array.map2 F.add)
 
-  let sub (a: t) (b: t): t =
-    map_matrixes (function
-    | [x; y] -> F.sub x y
-    | _ -> failwith "Not two matrixes?"
-    ) [a; b]
+  let sub: t -> t -> t = Array.map2 (Array.map2 F.sub)
 
   let mul (a: t) (b: t): t = 
     let c = Array.copy zero in 
@@ -72,11 +55,7 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
     done;
     c
 
-  let external_mul (b: int) (a: t): t =
-    map_matrixes (function
-    | [x] -> F.external_mul b x
-    | _ -> failwith "Not one matrixes?"
-    ) [a]
+  let external_mul (b: int): t -> t = Array.map (Array.map (F.external_mul b))
 
   let exp a n: t =
     let rec aux acc a n =
@@ -86,11 +65,7 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
     in
     aux one a n
 
-  let ( *. ) (b: F.t) (a: t): t =
-    map_matrixes (function
-    | [x] -> F.mul b x
-    | _ -> failwith "Not one matrixes?"
-    ) [a]
+  let ( *. ) (b: F.t): t -> t = Array.map (Array.map (F.mul b))
 
   let equal: t -> t -> bool = Array.for_all2 (Array.for_all2 ( = ))
 
@@ -102,17 +77,9 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
   let of_int a = external_mul a one 
   let to_int _ = failwith "Who the hell wants to convert a matrix to an int??? What are you expecting?"
 
-  let of_int_matrix (a: int array array): t =
-    map_matrixes (function
-    | [x] -> F.of_int x
-    | _ -> failwith "Not one matrixes?"
-    ) [a]
+  let of_int_matrix: int array array -> t = Array.map (Array.map F.of_int)
 
-  let to_int_matrix (a: t): int array array =
-    map_matrixes (function
-    | [x] -> F.to_int x
-    | _ -> failwith "Not one matrixes?"
-    ) [a]
+  let to_int_matrix: t -> int array array = Array.map (Array.map F.to_int)
 
   let pp_matrix fmt m =
     let open Format in
