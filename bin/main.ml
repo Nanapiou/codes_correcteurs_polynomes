@@ -34,5 +34,8 @@ let m = of_int_matrix [|
 
 let m' = gaussian_elimination m
 
+let x = kernel_element m 
+
 let () = 
-  print_endline @@ to_string m'
+  print_endline @@ to_string m';
+  print_endline @@ vector_to_string x

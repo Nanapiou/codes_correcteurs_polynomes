@@ -16,6 +16,8 @@ module type MATRIXES_RING = sig
   val apply : t -> F.t array -> F.t array
   val of_int_matrix : int array array -> t
   val to_int_matrix : t -> int array array
+  val kernel_element : t -> F.t array
+  val vector_to_string : F.t array -> string
 end
 
 module type MATRIXES_PARAM = sig
@@ -86,9 +88,11 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
   let to_int_matrix: t -> int array array = Array.map (Array.map F.to_int)
 
   let row_switch (m: t) i j =
-    let t = m.(i) in
-    m.(i) <- m.(j);
-    m.(j) <- t
+    if i = j then () else begin
+      let t = m.(i) in
+      m.(i) <- m.(j);
+      m.(j) <- t
+    end
   let row_mul ?(elementary=true) m i x =
     assert (not elementary || (not (F.equal x F.zero)));
     Array.map_inplace (F.mul x) m.(i)
@@ -102,7 +106,7 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
     for j = 0 to n - 1 do 
       let dif0 x = not (F.equal x F.zero) in
       let k = ref None in 
-      for i = !r + 1 to n - 1 do 
+      for i = !r + 1 to n - 1 do (* Could stop the loop earlier, but no break in ocaml and I'm lazy *)
         if dif0 cp.(i).(j) then begin
           k := Some i;
         end
@@ -119,6 +123,29 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
       end
     done;
     cp
+
+  let kernel_element (m: t): F.t array =
+    let rref = gaussian_elimination m in 
+    let zero_line = Array.make n F.zero in
+    let rec count_rank i =
+      if i = n then 0 else begin 
+        if rref.(i) <> zero_line then 1 + count_rank (i + 1) else 0
+      end
+    in
+    let rank = count_rank 0 in
+    let x = Array.make n F.zero in 
+    for i = rank to n - 1 do 
+      x.(i) <- F.one 
+    done;
+    for i = rank - 1 downto 0 do 
+      let t = ref F.zero in 
+      for j = i + 1 to n - 1 do 
+        t := F.sub !t (F.mul rref.(i).(j) x.(j))
+      done;
+      x.(i) <- !t
+    done;
+    x
+    
 
   let pp_matrix fmt m =
     let open Format in
@@ -147,4 +174,10 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
 
   let to_string m =
     Format.asprintf "%a" pp_matrix m
+
+  let vector_to_string (v : F.t array) : string =
+    let lines =
+      Array.to_list (Array.map F.to_string v)
+    in
+    String.concat "\n" lines
 end
