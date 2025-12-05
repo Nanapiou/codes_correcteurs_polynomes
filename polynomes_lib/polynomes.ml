@@ -22,7 +22,7 @@ module type POLY_EUCLIDEAN_RING = sig
   val normalize : t -> t
   val derive : t -> t
   val reciprocal : t -> t
-  val berlekamp : t -> t list
+  val berlekamp : t -> t * t list
   val of_array : int array -> t
   val to_array : t -> int array
 end
@@ -77,7 +77,9 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let external_mul n a = normalize (Ring.external_mul n a)
   let exp a n = Utils.fast_operation mul one a n
   let derive = Fun.compose normalize Ring.derive
-  let berlekamp = Fun.compose (List.map normalize) Ring.berlekamp
+  let berlekamp p =
+    let coef, l = Ring.berlekamp p in
+    coef, (List.map normalize l)
 
   let egcd = Ring.egcd
 
@@ -242,7 +244,7 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
       String.concat " + " terms
 
     
-  let berlekamp p: t list =
+  let berlekamp p: t * t list =
     let p_coef = leading_coeff p in 
     let p = (F.inv p_coef) *. p in
     let q = F.order in
@@ -259,7 +261,7 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
     let m: MnFq.t = Array.init n (fun i -> Utils.complete_array F.zero n @@ s (exp_modp x i)) in
     (* print_endline @@ MnFq.to_string m; *)
     let g = MnFq.kernel_element m in 
-    (p_coef *. one) :: List.filter_map (fun alpha' -> 
+    (p_coef *. one), List.filter_map (fun alpha' -> 
       let aplha = F.of_int alpha' in 
       let (gcd, _, _) = egcd p (g -^ aplha *. one) in 
       if deg gcd > 0 then Some gcd else None

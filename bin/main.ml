@@ -12,7 +12,7 @@ module F3X = MakePoly(F3)
 let p: F3X.t = 
   let open F3X in 
   (x **^ 3) +^ x +^ one
-let factors = F3X.berlekamp p
+let (coef, factors) = F3X.berlekamp p
 let pback = List.fold_left F3X.mul F3X.one factors
 
 let () =
