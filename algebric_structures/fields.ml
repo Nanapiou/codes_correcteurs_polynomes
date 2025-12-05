@@ -1,20 +1,9 @@
 open Rings
 
 module type FIELD = sig
-  type t
-  val zero : t
-  val one : t
-  val add : t -> t -> t
-  val external_mul : int -> t -> t
-  val sub : t -> t -> t
-  val mul : t -> t -> t
+  include RING
   val inv : t -> t
   val div : t -> t -> t
-  val equal : t -> t -> bool
-  val of_int : int -> t
-  val to_int : t -> int
-  val to_string : t -> string
-
   val order : int (* -1 if infinite *)
 end
 
@@ -26,6 +15,7 @@ module FloatField: FIELD = struct
   let external_mul n f = float_of_int n *. f
   let sub = ( -. )
   let mul = ( *. )
+  let exp a n = Float.pow a (float_of_int n)
   let inv x = 1. /. x
   let div = ( /. )
   let equal = (=)
@@ -69,11 +59,18 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
     in
     aux zero a n
 
+  let exp a n: t =
+    let rec aux acc a n =
+      if n = 0 then acc
+      else if n mod 2 = 0 then aux acc (mul a a) (n / 2)
+      else aux (mul acc a) (mul a a) (n / 2)
+    in
+    aux one a n
+
   let rec egcd a b =
     if b = zero then (a, one, zero)
     else begin
       let (q, r) = Ring.euclidean_div a b in
-      (* Printf.printf "%s = %s * (%s) + %s\n" (to_string a) (Ring.to_string b) (to_string q) (to_string r); *)
       let (g, x, y) = egcd b r in
       (g, y, Ring.sub x (Ring.mul q y))
     end

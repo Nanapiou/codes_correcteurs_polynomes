@@ -19,16 +19,18 @@ end)
 
 let n = 3
 
-module MnF16 = MakeMatrixes(struct
-  module F = F16
+module MnR = MakeMatrixes(struct
+  module F = FloatField
   let n = n
 end)
 
-let m = MnF16.of_int_matrix [|
+open MnR
+
+let m = of_int_matrix [|
   [| 1; 2; 3 |];
   [| 4; 5; 6 |];
   [| 7; 8; 9 |]
 |]
 
 let () = 
-  print_endline @@ MnF16.to_string m
+  print_endline @@ to_string (mul m m)
