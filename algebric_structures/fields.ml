@@ -51,33 +51,13 @@ module MakeExtendedField (P : EXTENDED_FIELD_PARAM): EXTENDED_FIELD = struct
   let add a b = normalize (Ring.add a b)
   let sub a b = normalize (Ring.sub a b)
   let mul a b = normalize (Ring.mul a b)
-  let external_mul n a =
-    let rec aux acc a n =
-      if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (add a a) (n / 2)
-      else aux (add a acc) (add a a) (n / 2)
-    in
-    aux zero a n
+  let external_mul n a = Utils.fast_operation add zero a n
 
-  let exp a n: t =
-    let rec aux acc a n =
-      if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (mul a a) (n / 2)
-      else aux (mul acc a) (mul a a) (n / 2)
-    in
-    aux one a n
-
-  let rec egcd a b =
-    if b = zero then (a, one, zero)
-    else begin
-      let (q, r) = Ring.euclidean_div a b in
-      let (g, x, y) = egcd b r in
-      (g, y, Ring.sub x (Ring.mul q y))
-    end
+  let exp a n: t = Utils.fast_operation mul one a n
 
   let inv a =
     if a = zero then raise Division_by_zero else
-    let (g, x, _) = egcd a p in
+    let (g, x, _) = Ring.egcd a p in
     if not (Ring.equal g one) then failwith "No inverse (not a field: q is not irreductible)"
     else normalize x
 

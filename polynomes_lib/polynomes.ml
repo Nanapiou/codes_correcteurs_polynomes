@@ -1,6 +1,7 @@
 open Algebric_structures
 open Fields
 open Rings
+open Matrixes
 
 module Fields = Fields
 module Rings = Rings
@@ -19,9 +20,9 @@ module type POLY_EUCLIDEAN_RING = sig
   val leading_coeff : t -> F.t
   val constant_coeff : t -> F.t
   val normalize : t -> t
-  val derive : t -> t 
+  val derive : t -> t
   val reciprocal : t -> t
-  val berlekamp : t -> t
+  val berlekamp : t -> t list
   val of_array : int array -> t
   val to_array : t -> int array
 end
@@ -74,18 +75,11 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let sub a b = normalize (Ring.sub a b)
   let mul a b = normalize (Ring.mul a b)
   let external_mul n a = normalize (Ring.external_mul n a)
-  let exp a n = normalize (Ring.exp a n)
+  let exp a n = Utils.fast_operation mul one a n
   let derive = Fun.compose normalize Ring.derive
-  let berlekamp = Fun.compose normalize Ring.berlekamp
-  
-  let rec egcd a b =
-    if b = zero then (a, one, zero)
-    else begin
-      let (q, r) = Ring.euclidean_div a b in
-      (* Printf.printf "%s = %s * (%s) + %s\n" (to_string a) (Ring.to_string b) (to_string q) (to_string r); *)
-      let (g, x, y) = egcd b r in
-      (g, y, Ring.sub x (Ring.mul q y))
-    end
+  let berlekamp = Fun.compose (List.map normalize) Ring.berlekamp
+
+  let egcd = Ring.egcd
 
   let inv a =
     if a = zero then raise Division_by_zero else
@@ -101,9 +95,9 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let order =
     if F.order = -1 then -1
     else IntRing.to_int @@ IntRing.exp (IntRing.of_int F.order) (deg p)
-end 
+end
 
-module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
+module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F = F = functor (F: FIELD) -> struct
   module F = F
   type t = F.t array
 
@@ -112,7 +106,7 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
   let zero = [||]
 
   let deg (p: t): int = Array.length p - 1
-  
+
   let normalize (p: t): t =
     let n = ref (Array.length p) in
     while !n > 0 && p.(!n - 1) = F.zero do
@@ -142,12 +136,6 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
     |> normalize
   let add = ( +^ )
   let external_mul n a = Array.map (F.external_mul n) a
-      (* let rec aux acc a n =
-        if n = 0 then acc
-        else if n mod 2 = 0 then aux acc (add a a) (n / 2)
-        else aux (add a acc) (add a a) (n / 2)
-      in
-      aux zero a n *)
 
   let ( -^ ) (p: t) (q: t): t =
     let n = max (Array.length p) (Array.length q) in
@@ -172,19 +160,13 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
 
   let ( *. ) (a: F.t) (p: t): t = Array.map (F.mul a) p |> normalize
 
-  let ( **^ ) a n: t =
-    let rec aux acc a n =
-      if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (a *^ a) (n / 2)
-      else aux (acc *^ a) (a *^ a) (n / 2)
-    in
-    aux one a n |> normalize
+  let ( **^ ) a n: t = Utils.fast_operation mul one a n |> normalize
   let exp = ( **^ )
-    
+
   let eval (p: t) (x: F.t): F.t =
     Array.fold_right (fun coeff acc -> F.add coeff (F.mul x acc)) p F.zero
-  
-   
+
+
   let euclidean_div (a: t) (b: t): t * t =
     let a = normalize a in
     let b = normalize b in
@@ -193,46 +175,54 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
     let q = ref zero in
     let r = ref a in
     while deg !r >= degb do
-      let fact = (F.div (leading_coeff !r) (leading_coeff b)) *. x **^ (deg !r - degb) in 
+      let fact = (F.div (leading_coeff !r) (leading_coeff b)) *. x **^ (deg !r - degb) in
       r := !r -^ fact *^ b;
       q := !q +^ fact
     done;
     (normalize !q, normalize !r) (* I still don't fucking know why it needs to be normalized again here *)
 
+  let rec egcd a b =
+    if b = zero then (a, one, zero)
+    else begin
+      let (q, r) = euclidean_div a b in
+      (* Printf.printf "%s = %s * (%s) + %s\n" (to_string a) (Ring.to_string b) (to_string q) (to_string r); *)
+      let (g, x, y) = egcd b r in
+      let inv_g_coef = F.inv @@ leading_coeff g in (* We want the gcd to be unitary *)
+      let trans = ( *. ) inv_g_coef in
+      (trans g, trans y, trans @@ x -^ q *^ y)
+    end
+
   let derive p: t =
     let p' = Array.mapi F.external_mul p in
-    Array.sub p' 1 (deg p)    
+    Array.sub p' 1 (deg p)
 
   let reciprocal (p: t): t =
     let d = deg p in
-    let p' = Array.make (d + 1) F.zero in 
-    for i = 0 to d do 
+    let p' = Array.make (d + 1) F.zero in
+    for i = 0 to d do
       p'.(d - i) <- p.(i)
     done;
     normalize p'
 
 
-  let berlekamp _ = assert false
-  
-
   let to_int p =
     if F.order = -1 then F.to_int (constant_coeff p) else
-    let q = F.order in 
+    let q = F.order in
     Array.fold_right (fun coeff acc -> F.to_int coeff + (acc * q)) p 0
 
   let of_int a =
     if F.order = -1 then [|F.of_int a|] else
-    let q = F.order in 
+    let q = F.order in
     let rec build_list a =
       if a = 0 then []
-      else 
-        let (k, l) = (a / q, a mod q) in 
-        F.of_int l :: build_list k 
+      else
+        let (k, l) = (a / q, a mod q) in
+        F.of_int l :: build_list k
     in
-    Array.of_list @@ build_list a 
-    
+    Array.of_list @@ build_list a
+
   let of_array = Array.map F.of_int
-    
+
   let to_string (p: t): string =
     if Array.length p = 0 then (F.to_string F.zero)
     else
@@ -250,6 +240,30 @@ module MakePoly (F : FIELD): POLY_EUCLIDEAN_RING with module F = F = struct
         |> List.filter_map Fun.id
       in
       String.concat " + " terms
+
+    
+  let berlekamp p: t list =
+    let p_coef = leading_coeff p in 
+    let p = (F.inv p_coef) *. p in
+    let q = F.order in
+    assert (q <> -1);
+    let n = deg p in
+    let modp x: t = snd (euclidean_div x p) in
+    let mul_modp a b = modp (mul a b) in
+    let exp_modp a n = Utils.fast_operation mul_modp one a n in
+    let module MnFq = MakeMatrixes(struct
+      module F = F
+      let n = n
+    end) in
+    let s a = (exp_modp a q) -^ a in
+    let m: MnFq.t = Array.init n (fun i -> Utils.complete_array F.zero n @@ s (exp_modp x i)) in
+    (* print_endline @@ MnFq.to_string m; *)
+    let g = MnFq.kernel_element m in 
+    (p_coef *. one) :: List.filter_map (fun alpha' -> 
+      let aplha = F.of_int alpha' in 
+      let (gcd, _, _) = egcd p (g -^ aplha *. one) in 
+      if deg gcd > 0 then Some gcd else None
+    ) (List.init q Fun.id)
 end
- 
+
 

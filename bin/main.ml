@@ -3,39 +3,19 @@ open Fields
 open Matrixes
 open Polynomes
 
-module F2 = Fields.MakeExtendedField(struct
+module F3 = Fields.MakeExtendedField(struct
   module Ring = Rings.IntRing
-  let p = Ring.of_int 2
+  let p = Ring.of_int 3
 end)
-module F2X = MakePoly(F2)
+module F3X = MakePoly(F3)
 
+let p: F3X.t = 
+  let open F3X in 
+  (x **^ 3) +^ x +^ one
+let factors = F3X.berlekamp p
+let pback = List.fold_left F3X.mul F3X.one factors
 
-module F16 =  Polynomes.MakePolyExtendedField(struct
-  module Ring = F2X 
-
-  open Ring
-  let p = x **^ 4 +^ x +^ one
-end)
-
-let n = 3
-
-module MnR = MakeMatrixes(struct
-  module F = FloatField
-  let n = n
-end)
-
-open MnR
-
-let m = of_int_matrix [|
-  [| 1; 2; 3 |];
-  [| 4; 5; 6 |];
-  [| 7; 8; 9 |]
-|]
-
-let m' = gaussian_elimination m
-
-let x = kernel_element m 
-
-let () = 
-  print_endline @@ to_string m';
-  print_endline @@ vector_to_string x
+let () =
+  print_endline @@ F3X.to_string p;
+  print_endline @@ F3X.to_string pback;
+  List.iter (Fun.compose print_endline F3X.to_string) @@ factors

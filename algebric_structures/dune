@@ -1,2 +1,3 @@
 (library
- (name algebric_structures))
+ (name algebric_structures)
+ (libraries utils))

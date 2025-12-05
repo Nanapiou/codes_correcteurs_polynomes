@@ -17,6 +17,7 @@ module type EUCLIDEAN_RING = sig
   include RING
   val euclidean_div : t -> t -> t * t
   (* We could have use the Euclidean function conecpt, but may be unoptimized for integers *)
+  val egcd : t -> t -> t * t * t
 end
 
 
@@ -27,24 +28,19 @@ module IntRing : EUCLIDEAN_RING = struct
   let add = ( + )
   let sub = ( - )
   let mul = ( * )
-  let exp =
-    let rec aux acc a n =
-      if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (mul a a) (n / 2)
-      else aux (mul acc a) (mul a a) (n / 2)
-    in
-    aux 1
+  let exp = Utils.fast_operation mul 1
   let external_mul n a = Int.mul n a
-    (* let rec aux acc a n =
-      if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (add a a) (n / 2)
-      else aux (add a acc) (add a a) (n / 2)
-    in
-    aux zero a n *)
   let normalize a b =
     let r = a mod b in
     if r < 0 then r + b else r
   let euclidean_div a b = (a / b, normalize a b)
+  let rec egcd a b =
+    if b = zero then (a, one, zero)
+    else begin
+      let (q, r) = euclidean_div a b in
+      let (g, x, y) = egcd b r in
+      (g, y, sub x (mul q y))
+    end
   let equal = ( = )
   let of_int = Fun.id
   let to_int = Fun.id

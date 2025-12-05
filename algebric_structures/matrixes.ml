@@ -4,6 +4,7 @@ open Rings
 module type MATRIXES_RING = sig
   module F : FIELD
   include RING with type t = F.t array array
+  val init_matrix: (int -> int -> F.t) -> t
   val ( +^ ) : t -> t -> t
   val ( -^ ) : t -> t -> t
   val ( *^ ) : t -> t -> t
@@ -32,6 +33,8 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
 
   let zero = Array.make_matrix n n F.zero
   let one = Array.init_matrix n n (fun i j -> if i = j then F.one else F.zero)
+
+  let init_matrix f: t = Array.init_matrix n n f
 
   let apply (m: t) (x: F.t array): F.t array = 
     let y = Array.make n F.zero in 
@@ -63,13 +66,7 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
 
   let external_mul (b: int): t -> t = Array.map (Array.map (F.external_mul b))
 
-  let exp a n: t =
-    let rec aux acc a n =
-      if n = 0 then acc
-      else if n mod 2 = 0 then aux acc (mul a a) (n / 2)
-      else aux (mul acc a) (mul a a) (n / 2)
-    in
-    aux one a n
+  let exp a n: t = Utils.fast_operation mul one a n
 
   let ( *. ) (b: F.t): t -> t = Array.map (Array.map (F.mul b))
 
