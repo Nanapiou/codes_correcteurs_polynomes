@@ -23,6 +23,7 @@ module type POLY_EUCLIDEAN_RING = sig
   val derive : t -> t
   val reciprocal : t -> t
   val berlekamp : t -> t * t list
+  val berlekamp_irreductible : t -> t * t list
   val of_array : int array -> t
   val to_array : t -> int array
 end
@@ -79,6 +80,9 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let derive = Fun.compose normalize Ring.derive
   let berlekamp p =
     let coef, l = Ring.berlekamp p in
+    coef, (List.map normalize l)
+  let berlekamp_irreductible p =
+    let coef, l = Ring.berlekamp_irreductible p in
     coef, (List.map normalize l)
 
   let egcd = Ring.egcd
@@ -261,11 +265,30 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
     let m: MnFq.t = Array.init n (fun i -> Utils.complete_array F.zero n @@ s (exp_modp x i)) in
     (* print_endline @@ MnFq.to_string m; *)
     let g = MnFq.kernel_element m in 
+    print_endline @@ to_string (modp @@ s g);
+    print_endline @@ MnFq.vector_to_string (MnFq.apply m g);
+    assert (Array.exists (( <> ) F.zero) g);
     (p_coef *. one), List.filter_map (fun alpha' -> 
       let aplha = F.of_int alpha' in 
       let (gcd, _, _) = egcd p (g -^ aplha *. one) in 
-      if deg gcd > 0 then Some gcd else None
+      if deg gcd > 0 && deg gcd < n then Some gcd else None
     ) (List.init q Fun.id)
+
+  let berlekamp_irreductible (p: t): t * t list = 
+    let rec aux acc_irr = function
+      | [] -> acc_irr 
+      | l ->
+        let l' = List.map berlekamp l in 
+        let irr, others = Utils.map_two_to_two (fun (_, factors) q ->
+          match factors with
+          | [] -> Either.left q 
+          | factors -> Either.right factors
+        ) l' l in
+        aux (irr @ acc_irr) (List.concat others)
+    in
+    (* I want my polynomes to be unitary *)
+    let coef, factors = berlekamp p in
+    coef, aux [] factors
 end
 
 

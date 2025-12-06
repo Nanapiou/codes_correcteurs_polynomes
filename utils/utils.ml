@@ -12,3 +12,24 @@ let complete_array (elt: 'a) (n: int) (a: 'a array): 'a array =
   let new_a = Array.make n elt in
   Array.blit a 0 new_a 0 n';
   new_a
+
+let map_one_to_two (f: 'a -> ('b, 'c) Either.t) (l: 'a list): 'b list * 'c list =
+  let rec aux (accl, accr) = function
+    | [] -> accl, accr
+    | h :: t -> begin match f h with
+      | Either.Left x -> aux (x :: accl, accr) t
+      | Either.Right y -> aux (accl, y :: accr) t
+    end
+  in
+  aux ([], []) l
+
+let map_two_to_two (f: 'a -> 'd -> ('b, 'c) Either.t) (l1: 'a list) (l2: 'd list): 'b list * 'c list =
+  let rec aux (accl, accr) l1 l2 = match l1, l2 with
+    | [], [] -> accl, accr
+    | h1 :: t1, h2 :: t2 -> begin match f h1 h2 with
+      | Either.Left x -> aux (x :: accl, accr) t1 t2
+      | Either.Right y -> aux (accl, y :: accr) t1 t2
+    end
+    | _ -> failwith "Not same size lists"
+  in
+  aux ([], []) l1 l2
