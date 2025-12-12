@@ -3,21 +3,21 @@ open Fields
 open Matrixes
 open Polynomes
 
-module F3 = Fields.MakeExtendedField(struct
+module F2 = Fields.MakeExtendedField(struct
   module Ring = Rings.IntRing
-  let p = Ring.of_int 3
+  let p = Ring.of_int 2
 end)
-module F3X = MakePoly(F3)
+module F2X = MakePoly(F2)
 
-let p: F3X.t = 
-  let open F3X in
-  ((x **^ 3) +^ x +^ one) *^ (x +^ one) *^ x
+let p: F2X.t = 
+  let open F2X in
+  cyclotomic 15
   (* x **^ 2 +^ x *)
 
-let (coef, factors) = F3X.berlekamp_irreductible p
-let pback = List.fold_left F3X.mul F3X.one factors
+let (coef, factors) = F2X.berlekamp_irreductible p
+let pback = List.fold_left F2X.mul F2X.one factors
 
 let () =
   (* print_endline @@ F3X.to_string p; *)
-  print_endline @@ F3X.to_string p;
-  List.iter (Fun.compose print_endline F3X.to_string) @@ factors
+  print_endline @@ F2X.to_string p;
+  List.iter (Fun.compose print_endline F2X.to_string) @@ factors

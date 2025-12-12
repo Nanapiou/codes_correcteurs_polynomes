@@ -22,6 +22,8 @@ module type POLY_EUCLIDEAN_RING = sig
   val normalize : t -> t
   val derive : t -> t
   val reciprocal : t -> t
+  val cyclotomic : int -> t
+  val primitive_polynome : int -> t
   val berlekamp : t -> t * t list
   val berlekamp_irreductible : t -> t * t list
   val of_array : int array -> t
@@ -78,6 +80,8 @@ module MakePolyExtendedField(P : POLY_EXTENDED_FIELD_PARAM): POLY_EXTENDED_FIELD
   let external_mul n a = normalize (Ring.external_mul n a)
   let exp a n = Utils.fast_operation mul one a n
   let derive = Fun.compose normalize Ring.derive
+  let cyclotomic = Fun.compose normalize Ring.cyclotomic
+  let primitive_polynome = Fun.compose normalize Ring.primitive_polynome
   let berlekamp p =
     let coef, l = Ring.berlekamp p in
     coef, (List.map normalize l)
@@ -247,6 +251,11 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
       in
       String.concat " + " terms
 
+  let rec cyclotomic (n: int): t = 
+    if n = 1 then x -^ one else
+    let preds = List.fold_left (fun acc i -> acc *^ cyclotomic i) (cyclotomic 1) (Utils.divisors n) in 
+    fst (euclidean_div (x **^ n -^ one) preds)
+
     
   let berlekamp p: t * t list =
     let p_coef = leading_coeff p in 
@@ -298,6 +307,9 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
     (* I want my polynomes to be unitary *)
     let coef, factors = berlekamp p in
     coef, aux [] factors
+
+  let primitive_polynome n =
+    n |> cyclotomic |> berlekamp_irreductible |> snd |> List.hd
 end
 
 

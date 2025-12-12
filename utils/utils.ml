@@ -42,3 +42,12 @@ let array_rev (a: 'a array): 'a array =
     a'.(i) <- a.(n - 1 - i)
   done;
   a'
+
+let divisors (n: int): int list = 
+  let sup = n |> float_of_int |> sqrt |> floor |> int_of_float in 
+  let rec aux acc i =
+    if i > sup then acc
+    else
+      aux (if n mod i = 0 then i :: acc else acc) (i + 1)
+  in
+  aux [] 2

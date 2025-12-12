@@ -124,7 +124,7 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
     done;
     cp
 
-  let kernel_element (m: t): F.t array =
+  let kernel_element (m: t): F.t array = (* ChatGPTed *)
     let rref = gaussian_elimination m in 
     let n_rows = Array.length rref in
     let n_cols = Array.length rref.(0) in 
@@ -133,8 +133,7 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
     let pivot_cols = Array.make n_rows (-1) in
     let is_pivot_col = Array.make n_cols false in
     
-    (* Note: Assurez-vous que is_zero gère correctement votre type F.t (en particulier si c'est un float) *)
-    let is_zero v = v = F.zero in 
+    let is_zero = F.equal F.zero in 
 
     for i = 0 to n_rows - 1 do
       let rec find_pivot j =
