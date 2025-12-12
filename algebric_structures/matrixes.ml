@@ -10,6 +10,7 @@ module type MATRIXES_RING = sig
   val ( *^ ) : t -> t -> t
   val ( **^ ) : t -> int -> t
   val ( *. ) : F.t -> t -> t
+  val transpose : t -> t
   val row_switch : t -> int -> int -> unit 
   val row_mul : ?elementary:bool -> t -> int -> F.t -> unit 
   val row_addition : ?elementary:bool -> t -> int -> F.t -> int -> unit
@@ -77,6 +78,8 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
   let ( *^ ) = mul
   let ( **^ ) = exp
 
+  let transpose (m: t): t = init_matrix (fun i j -> m.(j).(i))
+
   let of_int a = external_mul a one 
   let to_int _ = failwith "Who the hell wants to convert a matrix to an int??? What are you expecting?"
 
@@ -123,26 +126,65 @@ module MakeMatrixes (P : MATRIXES_PARAM): MATRIXES_RING with module F = P.F = st
 
   let kernel_element (m: t): F.t array =
     let rref = gaussian_elimination m in 
-    let zero_line = Array.make n F.zero in
-    let rec count_rank i =
-      if i = n then 0 else begin 
-        if rref.(i) <> zero_line then 1 + count_rank (i + 1) else 0
-      end
-    in
-    let rank = count_rank 0 in
-    let x = Array.make n F.zero in 
-    for i = rank to n - 1 do 
-      x.(i) <- F.one 
-    done;
-    for i = rank - 1 downto 0 do 
-      let t = ref F.zero in 
-      for j = i + 1 to n - 1 do 
-        t := F.sub !t (F.mul rref.(i).(j) x.(j))
-      done;
-      x.(i) <- !t
-    done;
-    x
+    let n_rows = Array.length rref in
+    let n_cols = Array.length rref.(0) in 
     
+    (* 1. Repérer les colonnes qui sont des pivots *)
+    let pivot_cols = Array.make n_rows (-1) in
+    let is_pivot_col = Array.make n_cols false in
+    
+    (* Note: Assurez-vous que is_zero gère correctement votre type F.t (en particulier si c'est un float) *)
+    let is_zero v = v = F.zero in 
+
+    for i = 0 to n_rows - 1 do
+      let rec find_pivot j =
+        if j >= n_cols then -1
+        else if not (is_zero rref.(i).(j)) then j
+        else find_pivot (j + 1)
+      in
+      let p = find_pivot 0 in
+      pivot_cols.(i) <- p;
+      if p <> -1 then is_pivot_col.(p) <- true
+    done;
+
+    (* 2. Choisir la première variable libre STRICTEMENT POSITIVE (> 0) *)
+    let free_var_idx = ref (-1) in
+    begin
+      try
+        for j = 1 to n_cols - 1 do (* Démarrer à 1 pour ignorer le terme constant *)
+          if not is_pivot_col.(j) then (
+            free_var_idx := j;
+            raise Exit
+          )
+        done
+      with Exit -> ()
+    end;
+
+    (* 3. Si aucune variable libre > 0 n'est trouvée (le noyau est de dim 1 et contient que le constant) *)
+    if !free_var_idx = -1 then 
+      Array.make n_cols F.zero (* Renvoyer le vecteur nul comme demandé *)
+    else begin
+      (* 4. Construction du vecteur solution (polynôme non constant) *)
+      let x = Array.make n_cols F.zero in
+      
+      (* On fixe la variable libre choisie à 1 *)
+      x.(!free_var_idx) <- F.one;
+
+      (* 5. Remontée (Back-substitution) *)
+      for i = n_rows - 1 downto 0 do
+        let p_col = pivot_cols.(i) in
+        if p_col <> -1 then (
+          let sum = ref F.zero in
+          for j = p_col + 1 to n_cols - 1 do
+            sum := F.add !sum (F.mul rref.(i).(j) x.(j))
+          done;
+          
+          let pivot_val = rref.(i).(p_col) in
+          x.(p_col) <- F.div (F.sub F.zero !sum) pivot_val
+        )
+      done;
+      x
+    end
 
   let pp_matrix fmt m =
     let open Format in

@@ -33,3 +33,12 @@ let map_two_to_two (f: 'a -> 'd -> ('b, 'c) Either.t) (l1: 'a list) (l2: 'd list
     | _ -> failwith "Not same size lists"
   in
   aux ([], []) l1 l2
+
+let array_rev (a: 'a array): 'a array = 
+  let n = Array.length a in 
+  if n = 0 then [||] else
+  let a' = Array.make n a.(0) in 
+  for i = 0 to n - 1 do 
+    a'.(i) <- a.(n - 1 - i)
+  done;
+  a'

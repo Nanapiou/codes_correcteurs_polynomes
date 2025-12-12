@@ -262,28 +262,37 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
       let n = n
     end) in
     let s a = (exp_modp a q) -^ a in
-    let m: MnFq.t = Array.init n (fun i -> Utils.complete_array F.zero n @@ s (exp_modp x i)) in
-    (* print_endline @@ MnFq.to_string m; *)
+    let mt: MnFq.t = Array.make n [||] in 
+    let x_pow = ref one in
+    for i = 0 to n - 1 do 
+      mt.(i) <- Utils.complete_array F.zero n @@ s !x_pow;
+      x_pow := mul_modp !x_pow x
+    done;
+    let m = MnFq.transpose mt in
     let g = MnFq.kernel_element m in 
-    print_endline @@ to_string (modp @@ s g);
-    print_endline @@ MnFq.vector_to_string (MnFq.apply m g);
-    assert (Array.exists (( <> ) F.zero) g);
-    (p_coef *. one), List.filter_map (fun alpha' -> 
-      let aplha = F.of_int alpha' in 
-      let (gcd, _, _) = egcd p (g -^ aplha *. one) in 
-      if deg gcd > 0 && deg gcd < n then Some gcd else None
-    ) (List.init q Fun.id)
+    (* Printf.printf "g: %s\n" (to_string g);
+    Printf.printf "S(g): %s\n" (to_string @@ modp (s g));
+    Printf.printf "m:\n%s" @@ MnFq.to_string m;
+    print_endline @@ MnFq.vector_to_string (MnFq.apply m g); *)
+    if Array.exists (( <> ) F.zero) g then
+      (p_coef *. one), List.filter_map (fun alpha' ->
+        let aplha = F.of_int alpha' in 
+        let (gcd, _, _) = egcd p (g -^ aplha *. one) in 
+        if deg gcd > 0 && deg gcd < n then Some gcd else None
+      ) (List.init q Fun.id)
+    else
+      (p_coef *. one), [p]
 
   let berlekamp_irreductible (p: t): t * t list = 
     let rec aux acc_irr = function
       | [] -> acc_irr 
       | l ->
         let l' = List.map berlekamp l in 
-        let irr, others = Utils.map_two_to_two (fun (_, factors) q ->
+        let irr, others = Utils.map_one_to_two (fun (_, factors) ->
           match factors with
-          | [] -> Either.left q 
+          | [q] -> Either.left q 
           | factors -> Either.right factors
-        ) l' l in
+        ) l' in
         aux (irr @ acc_irr) (List.concat others)
     in
     (* I want my polynomes to be unitary *)
