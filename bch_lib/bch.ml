@@ -15,9 +15,9 @@ let print_int_set s =
 
 module type BCH_PARAM = sig
   module FqX : POLY_EUCLIDEAN_RING 
-  val primitive_p: FqX.t (* An irreductible factor of phi_{q^m-1}, "polynome primitif de degré m" *)
+  (* val primitive_p: FqX.t (* An irreductible factor of phi_{q^m-1}, "polynome primitif de degré m" *) *)
 
-  (* val m : int (* Should be deg(primitive_p) *) *)
+  val m : int (* Should be deg(primitive_p) *)
   val delta : int
 end
 
@@ -28,15 +28,15 @@ module BchCode(P: BCH_PARAM) = struct
   let delta = P.delta 
   let q = Fq.order
   let () = if q = -1 then failwith "Do not use a BCH on a non-finite field."
-  let m = FqX.deg P.primitive_p
-
+  let m = P.m
   let n =
     let open Rings.IntRing in
     to_int (exp (of_int q) m) - 1
+  let primitive_p = FqX.primitive_polynome n
 
   module Fqm = MakePolyExtendedField(struct
     module Ring = FqX
-    let p = P.primitive_p
+    let p = primitive_p
   end)
   module FqmX = MakePoly(Fqm) 
   let alpha = Fqm.x
