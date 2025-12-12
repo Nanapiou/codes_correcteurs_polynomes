@@ -253,7 +253,7 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
 
   let rec cyclotomic (n: int): t = 
     if n = 1 then x -^ one else
-    let preds = List.fold_left (fun acc i -> acc *^ cyclotomic i) (cyclotomic 1) (Utils.divisors n) in 
+    let preds: t = List.fold_left (Fun.flip @@ Fun.compose mul cyclotomic) (cyclotomic 1) (Utils.divisors n) in 
     fst (euclidean_div (x **^ n -^ one) preds)
 
     
