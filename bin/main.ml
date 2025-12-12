@@ -25,8 +25,9 @@ module RS15_11 = BchCode(struct
 
   open FqX
   (* let m = 1 *)
+  let primitive_p = x -^ (F16.of_int 15 *. one)
   (* let primitive_p = x -^ (F16.x *. one) *)
-  let primitive_p = primitive_polynome 15
+  (* let primitive_p = primitive_polynome 15 *)
 end)
 
 module H7_4 = BchCode(struct (* Hamming code (7, 4) *)

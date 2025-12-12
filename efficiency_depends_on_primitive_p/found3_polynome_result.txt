@@ -1,0 +1,32 @@
+Random RS test: 3 msgs, 500 trials/weight
+Primitive polynome: (12.) + (1.)x
+q = 16, m = 1, n = 15
+
+Message 1:
+  weight= 0 ->  500/ 500 = 100.00%   dt=0.951s
+  weight= 1 ->  500/ 500 = 100.00%   dt=1.275s
+  weight= 2 ->  429/ 500 =  85.80%   dt=1.382s
+  weight= 3 ->  429/ 500 =  85.80%   dt=1.491s
+  weight= 4 ->  441/ 500 =  88.20%   dt=1.735s
+  weight= 5 ->  447/ 500 =  89.40%   dt=1.423s
+  weight= 6 ->  448/ 500 =  89.60%   dt=1.431s
+
+Message 2:
+  weight= 0 ->  500/ 500 = 100.00%   dt=1.274s
+  weight= 1 ->  500/ 500 = 100.00%   dt=1.459s
+  weight= 2 ->  446/ 500 =  89.20%   dt=1.595s
+  weight= 3 ->  430/ 500 =  86.00%   dt=1.641s
+  weight= 4 ->  428/ 500 =  85.60%   dt=1.551s
+  weight= 5 ->  447/ 500 =  89.40%   dt=1.653s
+  weight= 6 ->  445/ 500 =  89.00%   dt=1.700s
+
+Message 3:
+  weight= 0 ->  500/ 500 = 100.00%   dt=0.795s
+  weight= 1 ->  500/ 500 = 100.00%   dt=1.041s
+  weight= 2 ->  435/ 500 =  87.00%   dt=1.203s
+  weight= 3 ->  442/ 500 =  88.40%   dt=1.288s
+  weight= 4 ->  439/ 500 =  87.80%   dt=1.347s
+  weight= 5 ->  442/ 500 =  88.40%   dt=1.344s
+  weight= 6 ->  444/ 500 =  88.80%   dt=1.390s
+
+Done.
