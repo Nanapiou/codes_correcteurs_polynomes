@@ -24,8 +24,9 @@ module RS15_11 = BchCode(struct
   let delta = 3
 
   open FqX
-  let m = 1
+  (* let m = 1 *)
   (* let primitive_p = x -^ (F16.x *. one) *)
+  let primitive_p = primitive_polynome 15
 end)
 
 module H7_4 = BchCode(struct (* Hamming code (7, 4) *)
@@ -34,8 +35,8 @@ module H7_4 = BchCode(struct (* Hamming code (7, 4) *)
   let delta = 2 
   open FqX 
 
-  (* let primitive_p = primitive_polynome 7 *)
-  let m = 3
+  let primitive_p = primitive_polynome 7
+  (* let m = 3 *)
 end)
 
 module Bch15 = BchCode(struct
@@ -43,8 +44,8 @@ module Bch15 = BchCode(struct
   (* let m = 4 *)
   let delta = 2
   open FqX
-  (* let primitive_p = primitive_polynome 15 *)
-  let m = 4
+  let primitive_p = primitive_polynome 15
+  (* let m = 4 *)
 end)
 
 
@@ -145,10 +146,14 @@ let random_message () =
       build (i-1) (acc +^ (c *. (x **^ i)))
   in build d zero
 
+
+let clean_poly_to_string p =
+  let p': RX.t = Array.map (Fun.compose Fields.FloatField.of_int F2X.to_int) p in 
+  RX.to_string p'
 (* Full test over several messages *)
 let test_random_messages ~samples =
-  printf "Random RS test: %d msgs, %d trials/weight\n%!"
-    samples trials_per_weight;
+  printf "Random RS test: %d msgs, %d trials/weight\nPrimitive polynome: %s\nq = %d, m = %d, n = %d\n%!"
+    samples trials_per_weight (clean_poly_to_string primitive_p) q m n;
   for m = 1 to samples do
     let msg = random_message () in
     printf "\nMessage %d:\n%!" m;
