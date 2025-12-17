@@ -1,2 +1,4 @@
 (test
- (name test_polynomes))
+ (name test_polynomes)
+ (libraries polynomes bch unix)
+ (flags -warn-error -k))

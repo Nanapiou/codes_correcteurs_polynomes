@@ -1,175 +1,100 @@
-open Polynomes
-open Bch
-
-module RX = MakePoly(Fields.FloatField)
-
-module F2 = Fields.MakeExtendedField(struct
-  module Ring = Rings.IntRing
-  let p = Ring.of_int 2
-end)
-module F2X = MakePoly(F2)
-
-
-module F16 =  Polynomes.MakePolyExtendedField(struct
-  module Ring = F2X 
-
-  open Ring
-  let p = primitive_polynome 15
-end)
-module F16X = MakePoly(F16)
-
-module RS15_11 = BchCode(struct
-  module FqX = F16X
-
-  let delta = 3
-
-  open FqX
-  (* let m = 1 *)
-  let primitive_p = x -^ (F16.of_int 2 *. one)
-  (* let primitive_p = x -^ (F16.x *. one) *)
-  (* let primitive_p = primitive_polynome 15 *)
-end)
-
-module H7_4 = BchCode(struct (* Hamming code (7, 4) *)
-  module FqX = F2X
-    
-  let delta = 2 
-  open FqX 
-
-  let primitive_p = primitive_polynome 7
-  (* let m = 3 *)
-end)
-
-module Bch15 = BchCode(struct
-  module FqX = F2X
-  (* let m = 4 *)
-  let delta = 2
-  open FqX
-  let primitive_p = primitive_polynome 15
-  (* let m = 4 *)
-end)
-
-
-(* rs_random_test.ml *)
-
-open Printf
-open Unix
-
-open RS15_11
-open F16X      (* your polynomial module *)
-
-(* ===== Parameters ===== *)
-let trials_per_weight = 500    (* adjust for more stats *)
-let max_errors_to_test = 6
-let random_seed = 41
-let do_bursts = false 
-(* ====================== *)
-
-let () = Random.init random_seed
-
-(* ---- Helpers ---- *)
-
-(* A zero polynomial that is valid for any implementation: *)
-let zero = of_array [|0|]
-
-(* Random non-zero coefficient in F16 *)
-let rand_nonzero_field () =
-  let v = 1 + Random.int (16 - 1) in
-  F16.of_int v
-
-(* Build error polynomial from chosen positions *)
-let error_of_positions positions =
-  List.fold_left (fun acc pos ->
-    let coeff = rand_nonzero_field () in
-    acc +^ (coeff *. (x **^ pos))
-  ) zero positions
-
-(* Distinct random error positions *)
-let random_positions weight =
-  let rec go acc =
-    if List.length acc = weight then acc
-    else
-      let p = Random.int n in
-      if List.mem p acc then go acc else go (p :: acc)
-  in
-  if weight = 0 then [] else go []
-
-(* Burst positions, contiguous *)
-let burst_positions weight =
-  if weight = 0 then []
-  else
-    let start = Random.int n in
-    let rec go i k acc =
-      if k = 0 then acc
-      else go (i+1) (k-1) (((start+i) mod n)::acc)
-    in go 0 weight []
-
-(* Remainder mod generator polynomial *)
-let remainder p =
-  snd (euclidean_div p full_g)
-
-(* One decoding attempt *)
-let run_single_trial msg weight =
-  let ef = encode msg in
-  let positions =
-    if do_bursts then burst_positions weight
-    else random_positions weight
-  in
-  let err = error_of_positions positions in
-  let errored = ef +^ err in
-  match correct errored with
-  | Result.Error _ -> false
-  | Result.Ok cef ->
-      (* Preferred equality check: compare remainder mod g *)
-      (remainder cef) = (remainder ef)
-
-(* Run many trials; report success & time *)
-let run_trials_for_weight msg weight trials =
-  let t0 = gettimeofday () in
-  let rec loop k successes =
-    if k = 0 then successes
-    else
-      let ok = run_single_trial msg weight in
-      loop (k-1) (if ok then successes + 1 else successes)
-  in
-  let succ = loop trials 0 in
-  let t1 = gettimeofday () in
-  (succ, trials, t1 -. t0)
-
-(* Build a random message polynomial *)
-let random_message () =
-  let max_deg = 8 in        (* restraint; RS encoder will handle exact k *)
-  let d = Random.int max_deg in
-  let rec build i acc =
-    if i < 0 then acc
-    else
-      let c = rand_nonzero_field () in
-      build (i-1) (acc +^ (c *. (x **^ i)))
-  in build d zero
-
-
-let clean_poly_to_string p =
-  let p': RX.t = Array.map (Fun.compose Fields.FloatField.of_int F2X.to_int) p in 
-  RX.to_string p'
-(* Full test over several messages *)
-let test_random_messages ~samples =
-  printf "Random RS test: %d msgs, %d trials/weight\nPrimitive polynome: %s\nq = %d, m = %d, n = %d\n%!"
-    samples trials_per_weight (clean_poly_to_string primitive_p) q m n;
-  for m = 1 to samples do
-    let msg = random_message () in
-    printf "\nMessage %d:\n%!" m;
-    for w = 0 to max_errors_to_test do
-      let (succ, total, dt) =
-        run_trials_for_weight msg w trials_per_weight
-      in
-      let pct =
-        Float.mul 100. (float succ) /. float total
-      in
-      printf "  weight=%2d -> %4d/%4d = %6.2f%%   dt=%.3fs\n%!"
-        w succ total pct dt
-    done
-  done
+(**********************************************************************)
+(* Interface graphique BCH – version CORRIGÉE, syntaxiquement saine   *)
+(* Conforme exactement à l'exemple fourni (lablgtk3)                 *)
+(**********************************************************************)
 
 let () =
-  test_random_messages ~samples:3;
-  printf "\nDone.\n%!"
+  ignore @@ GMain.init ();
+
+  (* Fenêtre principale *)
+  let w = GWindow.window ~width:900 ~height:500 ~title:"BCH – Simulation" () in
+  w#connect#destroy ~callback:GMain.quit |> ignore;
+
+  (* VBox principale *)
+  let main_box = GPack.vbox ~spacing:14 ~packing:w#add () in
+
+
+  (********************************************************************)
+  (* Zone du haut                                                    *)
+  (********************************************************************)
+
+  let top_box = GPack.vbox ~spacing:6 ~packing:main_box#pack () in
+
+  (* Entrée message (SEULE entrée éditable) *)
+  let entry_message = GEdit.entry ~packing:top_box#pack () in
+  entry_message#set_placeholder_text "Message à envoyer";
+  entry_message#misc#modify_font_by_name "Sans 16";
+
+
+  (* Ligne : choix du code + bouton *)
+  let code_box = GPack.hbox ~spacing:6 ~packing:top_box#pack () in
+
+  let code_combo = GEdit.combo_box_text ~packing:code_box#pack () in
+  let add_list b = List.iter (GEdit.text_combo_add b) in
+  add_list code_combo [ "BCH(7,4)"; "BCH(15,11)" ];
+  let code_cb, _ = code_combo in
+  
+
+  let send_button = GButton.button ~label:"Envoyer" ~packing:code_box#pack () in
+
+  (********************************************************************)
+  (* Zone du bas : résultats                                         *)
+  (********************************************************************)
+
+  let result_box = GPack.vbox ~spacing:6 ~packing:main_box#pack () in
+
+  (* Fonction utilitaire : une ligne label-titre + label-valeur *)
+  let make_row title =
+    let h = GPack.hbox ~spacing:6 ~packing:result_box#pack () in
+    let _title = GMisc.label ~text:title ~width:180 ~packing:h#pack () in
+    _title#misc#modify_font_by_name "Sans 14";
+    let value = GMisc.label ~text:"" ~xalign:0.0 ~packing:h#pack () in
+    value#misc#modify_font_by_name "Sans 14";
+    value
+  in
+
+  let label_encoded = make_row "Message encodé" in
+
+  (* Canal : combobox *)
+  let h_canal = GPack.hbox ~spacing:6 ~packing:result_box#pack () in
+  let label_canal =
+    GMisc.label ~text:"Canal" ~width:180 ~packing:h_canal#pack ()
+  in
+  label_canal#misc#modify_font_by_name "Sans 14";
+  let canal_combo = GEdit.combo_box_text ~packing:h_canal#pack () in
+  add_list canal_combo [ "Canal symétrique"; "Canal bruité" ];
+  let canal_cb, _ = canal_combo in
+  code_cb#misc#modify_font_by_name "Sans 14";
+  canal_cb#misc#modify_font_by_name "Sans 14";
+  send_button#misc#modify_font_by_name "Sans 14";
+
+
+  let label_with_error = make_row "Encodé avec erreur" in
+  let label_corrected = make_row "Encodé corrigé" in
+  let label_decoded = make_row "Message décodé" in
+
+  (********************************************************************)
+  (* Callback bouton Envoyer                                          *)
+  (********************************************************************)
+
+  ignore
+    (send_button#connect#clicked ~callback:(fun _ ->
+         let message = entry_message#text in
+         let code_index = code_cb#active in
+         let canal_index = canal_cb#active in
+
+         (* TODO : remplacer par tes vraies fonctions BCH *)
+         let encoded = Printf.sprintf "ENC[%d](%s)" code_index message in
+         let with_error = Printf.sprintf "%s + err(%d)" encoded canal_index in
+         let corrected = Printf.sprintf "CORR(%s)" with_error in
+         let decoded = Printf.sprintf "DEC(%s)" corrected in
+
+         label_encoded#set_text encoded;
+         label_with_error#set_text with_error;
+         label_corrected#set_text corrected;
+         label_decoded#set_text decoded;
+
+         flush stdout));
+
+  w#show ();
+  GMain.main ()

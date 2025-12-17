@@ -1,5 +1,5 @@
 (executable
  (public_name polynomes)
  (name main)
- (libraries polynomes bch unix)
+ (libraries lablgtk3 polynomes bch unix)
  (flags -warn-error -k))
