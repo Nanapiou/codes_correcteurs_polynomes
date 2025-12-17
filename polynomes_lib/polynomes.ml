@@ -241,9 +241,12 @@ module rec MakePoly: functor (F : FIELD) ->  POLY_EUCLIDEAN_RING with module F =
           if c = F.zero then None
           else
             Some (
-              if i = 0 then Printf.sprintf "(%s)" (F.to_string c)
+              (* if i = 0 then Printf.sprintf "(%s)" (F.to_string c)
               else if i = 1 then Printf.sprintf "(%s)x" (F.to_string c)
-              else Printf.sprintf "(%s)x^%d" (F.to_string c) i
+              else Printf.sprintf "(%s)x^%d" (F.to_string c) i *)
+              if i = 0 then Printf.sprintf "(%d)" (F.to_int c)
+              else if i = 1 then Printf.sprintf "(%d)x" (F.to_int c)
+              else Printf.sprintf "(%d)x^%d" (F.to_int c) i
             )
         ) p
         |> Array.to_list
