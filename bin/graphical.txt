@@ -1,0 +1,206 @@
+(**********************************************************************)
+(* Interface graphique BCH – version CORRIGÉE, syntaxiquement saine   *)
+(* Conforme exactement à l'exemple fourni (lablgtk3)                 *)
+(**********************************************************************)
+open Bch
+open Polynomes
+
+module F2 = Fields.MakeExtendedField (struct
+  module Ring = Rings.IntRing
+
+  let p = Ring.of_int 2
+end)
+
+module F2X = MakePoly (F2)
+
+module F16 = Polynomes.MakePolyExtendedField (struct
+  module Ring = F2X
+  open Ring
+
+  let p = primitive_polynome 15
+end)
+
+module F16X = MakePoly (F16)
+
+module RS15_11 = BchCode (struct
+  module FqX = F16X
+
+  let delta = 3
+
+  open FqX
+
+  (* let m = 1 *)
+  let primitive_p = x -^ (F16.of_int 2 *. one)
+  (* let primitive_p = x -^ (F16.x *. one) *)
+  (* let primitive_p = primitive_polynome 15 *)
+end)
+
+module H7_4 = BchCode (struct
+  (* Hamming code (7, 4) *)
+  module FqX = F2X
+
+  let delta = 2
+
+  open FqX
+
+  let primitive_p = primitive_polynome 7
+  (* let m = 3 *)
+end)
+
+let code_modules = [| (module H7_4 : Code); (module RS15_11 : Code) |]
+let code_names = [| "H(7,4)"; "Rs(15,11)" |]
+let () = Random.self_init ()
+
+let symetrical_canal errors_count bound (msg : int array) : int array =
+  if errors_count < 0 then
+    invalid_arg "introduce_errors: errors_count must be >= 0";
+  if bound < 0 then invalid_arg "introduce_errors: bound must be >= 0";
+  let len = Array.length msg in
+  if len = 0 || errors_count = 0 then Array.copy msg
+  else if bound = 0 then Array.copy msg
+  else
+    let errors = min errors_count len in
+    let res = Array.copy msg in
+    let indices = Array.init len (fun i -> i) in
+    for i = len - 1 downto 1 do
+      let j = Random.int (i + 1) in
+      let tmp = indices.(i) in
+      indices.(i) <- indices.(j);
+      indices.(j) <- tmp
+    done;
+    for k = 0 to errors - 1 do
+      let idx = indices.(k) in
+      let shift = 1 + Random.int bound in
+      let newv = (res.(idx) + shift) mod (bound + 1) in
+      res.(idx) <- newv
+    done;
+    res
+
+let canal_functions : (int -> int -> int array -> int array) array =
+  [| symetrical_canal |]
+
+let canal_names = [| "Canal symétrique"; "Canal bruité" |]
+
+let () =
+  ignore @@ GMain.init ();
+
+  (* Fenêtre principale *)
+  let w = GWindow.window ~width:900 ~height:500 ~title:"BCH – Simulation" () in
+  w#connect#destroy ~callback:GMain.quit |> ignore;
+
+  (* VBox principale *)
+  let main_box = GPack.vbox ~spacing:14 ~packing:w#add () in
+
+  (********************************************************************)
+  (* Zone du haut                                                    *)
+  (********************************************************************)
+  let top_box = GPack.vbox ~spacing:6 ~packing:main_box#pack () in
+
+  (* Entrée message (SEULE entrée éditable) *)
+  let entry_message = GEdit.entry ~packing:top_box#pack () in
+  entry_message#set_placeholder_text "Message à envoyer";
+  entry_message#misc#modify_font_by_name "Sans 16";
+
+  (* Ligne : choix du code + bouton *)
+  let code_box = GPack.hbox ~spacing:6 ~packing:top_box#pack () in
+
+  let code_combo = GEdit.combo_box_text ~packing:code_box#pack () in
+  let add_list b = List.iter (GEdit.text_combo_add b) in
+  add_list code_combo (Array.to_list code_names);
+  let code_cb, _ = code_combo in
+
+  let send_button = GButton.button ~label:"Envoyer" ~packing:code_box#pack () in
+
+  (********************************************************************)
+  (* Zone du bas : résultats                                         *)
+  (********************************************************************)
+  let result_box = GPack.vbox ~spacing:6 ~packing:main_box#pack () in
+
+  (* Fonction utilitaire : une ligne label-titre + label-valeur *)
+  let make_row title =
+    let h = GPack.hbox ~spacing:6 ~packing:result_box#pack () in
+    let _title = GMisc.label ~text:title ~width:180 ~packing:h#pack () in
+    _title#misc#modify_font_by_name "Sans 14";
+    let value = GMisc.label ~text:"" ~xalign:0.0 ~packing:h#pack () in
+    value#misc#modify_font_by_name "Sans 14";
+    value
+  in
+
+  let label_converted = make_row "Message converti" in
+  let label_encoded = make_row "Message encodé" in
+
+  let h_spin = GPack.hbox ~spacing:6 ~packing:result_box#pack () in
+  let label_canal =
+    GMisc.label ~text:"Nombre d'erreurs" ~width:180 ~packing:h_spin#pack ()
+  in
+  label_canal#misc#modify_font_by_name "Sans 14";
+  let adj =
+    GData.adjustment ~value:1.0 ~lower:1.0 ~upper:100.0 ~step_incr:1.0
+      ~page_incr:5.0 ~page_size:0.0 ()
+  in
+  let spin =
+    GEdit.spin_button ~adjustment:adj ~rate:0.0 ~digits:0 ~wrap:true
+      ~packing:h_spin#pack ()
+  in
+
+  (* Canal : combobox *)
+  let h_canal = GPack.hbox ~spacing:6 ~packing:result_box#pack () in
+  let label_canal =
+    GMisc.label ~text:"Canal" ~width:180 ~packing:h_canal#pack ()
+  in
+  label_canal#misc#modify_font_by_name "Sans 14";
+  let canal_combo = GEdit.combo_box_text ~packing:h_canal#pack () in
+  add_list canal_combo (Array.to_list canal_names);
+  let canal_cb, _ = canal_combo in
+  code_cb#misc#modify_font_by_name "Sans 14";
+  canal_cb#misc#modify_font_by_name "Sans 14";
+  send_button#misc#modify_font_by_name "Sans 14";
+
+  let label_with_error = make_row "Encodé avec erreur" in
+  let label_corrected = make_row "Encodé corrigé" in
+  let label_decoded = make_row "Message décodé" in
+
+  (********************************************************************)
+  (* Callback bouton Envoyer                                          *)
+  (********************************************************************)
+  ignore
+    (send_button#connect#clicked ~callback:(fun _ ->
+         let message = entry_message#text in
+         let code_index = code_cb#active in
+         let canal_index = canal_cb#active in
+         let n_error = int_of_float spin#value in
+
+         let module C = (val code_modules.(code_index) : Code) in
+         let open C in
+         let introduce_error = canal_functions.(canal_index) in
+
+         let converted = Utils.split_array 0 k (Utils.string_to_binary message) in
+
+
+        List.iter
+          (Fun.compose print_endline (Utils.array_to_string (Printf.sprintf "%2d")))
+          converted;
+
+         let encoded = List.map encode converted in
+         let errored = List.map (introduce_error n_error q) encoded in
+         let corrected = List.map correct errored in 
+         let decoded = List.map (Option.map decode) corrected in
+
+         label_converted#set_text (Utils.list_to_string (Utils.array_to_string string_of_int) converted);
+         label_encoded#set_text (Utils.list_to_string (Utils.array_to_string string_of_int) encoded);
+         label_with_error#set_text (Utils.list_to_string (Utils.array_to_string string_of_int) errored);
+         label_corrected#set_text ("foo");
+         label_decoded#set_text "bar";
+
+         flush stdout));
+
+  w#show ();
+  GMain.main ()
+
+let a = [| 1; 2; 3; 4; 5; 6; 7; 8; 9; 10; 11; 12; 13; 14; 15; 16; 17; 18; 19 |]
+let splitted = Utils.split_array 0 8 a
+
+let () =
+  List.iter
+    (Fun.compose print_endline (Utils.array_to_string (Printf.sprintf "%2d")))
+    splitted
