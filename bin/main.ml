@@ -1,7 +1,5 @@
 (* ========================================================================== *)
-(* TIPE : LA DÉMULTIPLICATION (F_q -> F_p^s) CONTRE LES ERREURS EN PAQUETS    *)
-(* Concept : Une rafale de bits dans le canal ne compte que pour peu          *)
-(* d'erreurs dans le corps de Galois F_256.                                   *)
+(* MAIN.ML - VERSION FINALE : PRIMITIVITÉ GARANTIE                            *)
 (* ========================================================================== *)
 
 open Utils
@@ -15,217 +13,248 @@ open Channels
 open Pbm
 
 (* ========================================================================== *)
-(* 1. SETUP ALGÉBRIQUE : RS(255, 223) sur GF(256)                             *)
+(* 1. CONFIGURATION                                                           *)
 (* ========================================================================== *)
 
-(* Base F2 *)
+let img_width = 64
+let img_height = 64
+
+(* s=4 (Hexa) : Optimum pour les rafales courtes *)
+let s = 4 
+
+let q = 1 lsl s
+
+let m, t = 
+  match s with
+  | 1 -> (8, 25) 
+  | 4 -> (2, 14) (* n=255, t=14 *)
+  | _ -> (2, 2)
+
+(* ========================================================================== *)
+(* 2. CONSTRUCTION ALGÉBRIQUE                                                 *)
+(* ========================================================================== *)
+
 module F2Params = struct
   module Ring = IntRing
-  let p = Ring.of_int 2 
+  let p = Ring.of_int 2
 end
 module F2 = MakeExtendedField(F2Params)
 module F2X = MakePoly(F2)
 
-(* Extension GF(256) *)
-module GF256Params = struct
+let poly_prim_s = F2X.primitive_polynome ((1 lsl s) - 1)
+module Fq = MakePolyExtendedField(struct
   module Ring = F2X
-  (* P(X) = X^8 + X^4 + X^3 + X^2 + 1 (0x11D) *)
-  let p = F2X.of_array [| 1; 0; 1; 1; 1; 0; 0; 0; 1 |]
-end
-module GF256 = MakeExtendedField(GF256Params)
-module GF256X = MakePoly(GF256)
+  let p = poly_prim_s
+end)
+module FqX = MakePoly(Fq)
 
-(* Paramètres RS *)
-module RS_Params : BCH_PARAM with module FqX = GF256X = struct
-  module FqX = GF256X
-  (* P(Y) = Y + 2 (alpha) *)
-  let primitive_p = GF256X.of_array [| 2; 1 |] 
-  (* t=16 erreurs => delta=33 *)
-  let delta = 33
-end
+let n_gen = 
+  let q_pow_m = int_of_float (float_of_int q ** float_of_int m) in
+  q_pow_m - 1
 
-module MyRS = BchCode(RS_Params)
+(* --- NOUVEAU : VERIFICATION DE PRIMITIVITE --- *)
+(* Exponentiation modulaire de polynômes : (A^power) mod M *)
+let rec poly_pow_mod a power m =
+  let open FqX in
+  if power = 0 then one
+  else if power mod 2 = 0 then
+    let t = poly_pow_mod a (power / 2) m in
+    let _, r = euclidean_div (t *^ t) m in
+    r
+  else
+    let t = poly_pow_mod a (power - 1) m in
+    let _, r = euclidean_div (a *^ t) m in
+    r
 
-
-(* ========================================================================== *)
-(* 2. MODULE DE DÉMULTIPLICATION (L'ISOMORPHISME)                             *)
-(* ========================================================================== *)
-
-module Demultiplication = struct
-  (* Transforme un flux de bits en flux de symboles (GF256) *)
-  (* phi^-1 : (F_2)^8 -> F_256 *)
-  let bits_to_symbols (bits : int array) : int array =
-    let n_bits = Array.length bits in
-    (* Padding si pas multiple de 8 *)
-    let n_syms = (n_bits + 7) / 8 in
-    let symbols = Array.make n_syms 0 in
-    
-    for i = 0 to n_syms - 1 do
-      let acc = ref 0 in
-      for j = 0 to 7 do
-        let bit_idx = i * 8 + j in
-        let bit = if bit_idx < n_bits then bits.(bit_idx) else 0 in
-        (* Construction de l'octet (MSB first ou LSB, peu importe tant qu'on est cohérent) *)
-        acc := (!acc lsl 1) lor bit
-      done;
-      symbols.(i) <- !acc
-    done;
-    symbols
-
-  (* Transforme un flux de symboles (GF256) en flux de bits *)
-  (* phi : F_256 -> (F_2)^8 *)
-  let symbols_to_bits (symbols : int array) : int array =
-    let n_syms = Array.length symbols in
-    let n_bits = n_syms * 8 in
-    let bits = Array.make n_bits 0 in
-    
-    for i = 0 to n_syms - 1 do
-      let sym = symbols.(i) in
-      for j = 0 to 7 do
-        (* Extraction des bits (du MSB au LSB pour correspondre à l'inverse) *)
-        let bit = (sym lsr (7 - j)) land 1 in
-        bits.(i * 8 + j) <- bit
-      done;
-    done;
-    bits
-end
-
-
-(* ========================================================================== *)
-(* 3. SCÉNARIO : RS SUR CANAL BINAIRE À MÉMOIRE                               *)
-(* ========================================================================== *)
-
-let run_demo () =
-  Channels.init ();
-  Printf.printf "=== DÉMULTIPLICATION : RS(255) SUR CANAL BINAIRE ===\n";
-  
-  (* 1. Paramètres *)
-  let n_rs = MyRS.n in (* 255 symboles *)
-  let k_rs = MyRS.k in (* 223 symboles *)
-  
-  (* Taille en BITS d'un bloc encodé *)
-  
-  (* 2. Image Source (Bits) *)
-  Printf.printf "1. Génération Image PBM...\n";
-  (* Largeur : on veut exactement K symboles de large pour simplifier la démo *)
-  (* k_rs symboles = k_rs * 8 bits *)
-  let w_bits = k_rs * 8 in 
-  let h = 64 in
-  let img_source = Pbm.create_pattern w_bits h in
-  Pbm.save img_source "1_originale.pbm";
-
-  Printf.printf "   Image : %dx%d bits.\n" w_bits h;
-  Printf.printf "   Utilisation RS(%d, %d) sur GF(256).\n" n_rs k_rs;
-
-  (* 3. Encodage + Démultiplication *)
-  Printf.printf "2. Encodage (Isomorphisme F2^8 -> F256 -> RS -> F2^8)...\n";
-  
-  (* Buffer pour stocker l'image encodée (plus large car redondance) *)
-  let w_encoded_bits = n_rs * 8 in
-  let bits_transmission = Array.make (w_encoded_bits * h) 0 in
-  
-  for y = 0 to h - 1 do
-    (* A. Extraction ligne (Bits) *)
-    let row_bits = Array.sub img_source.data (y * w_bits) w_bits in
-    
-    (* B. Démultiplication Inverse : Bits -> Symboles *)
-    let msg_symbols = Demultiplication.bits_to_symbols row_bits in
-    (* msg_symbols doit faire k_rs de long *)
-    
-    (* C. Encodage RS (Algébrique) *)
-    let code_symbols_raw = MyRS.encode msg_symbols in
-    let code_symbols = Utils.complete_array 0 n_rs code_symbols_raw in
-    
-    (* D. Démultiplication : Symboles -> Bits *)
-    let code_bits = Demultiplication.symbols_to_bits code_symbols in
-    
-    (* E. Placement dans le buffer de transmission *)
-    (* Note : ici le code n'est pas forcément systématique visuellement en bits *)
-    (* car le mélange bits/symboles peut être complexe selon le polynôme *)
-    (* Mais on copie tout le bloc encodé *)
-    Array.blit code_bits 0 bits_transmission (y * w_encoded_bits) w_encoded_bits;
-  done;
-  
-  let img_encoded = Pbm.of_channel_output w_encoded_bits h bits_transmission in
-  Pbm.save img_encoded "2_encoded_stream.pbm";
-
-
-  (* 4. Canal Gilbert-Elliott (Sur les BITS !) *)
-  Printf.printf "3. Transmission Canal Binaire (Rafales de bits)...\n";
-  
-  (* SCÉNARIO CRITIQUE : *)
-  (* On génère des rafales de bits de longueur moyenne 10-20 bits. *)
-  (* Pour un code binaire t=2, ce serait mortel. *)
-  (* Pour RS sur octets, 20 bits = max 3 ou 4 octets touchés. *)
-  (* RS corrige 16 symboles, donc c'est TRÈS facile pour lui. *)
-  
-  let bits_received = Channels.gilbert_elliott 
-    ~p_gb:0.005  (* Incidents rares *)
-    ~p_bg:0.10   (* Rafales longues ! (1/0.10 = 10 bits moy) *)
-    ~err_g:0.0 
-    ~err_b:0.5 
-    bits_transmission
+(* Factorisation basique pour trouver les facteurs premiers de n *)
+let get_prime_factors n =
+  let rec aux d n acc =
+    if n = 1 then acc
+    else if n mod d = 0 then aux d (n / d) (d :: acc)
+    else aux (d + 1) n acc
   in
-  
-  let img_noisy = Pbm.of_channel_output w_encoded_bits h bits_received in
-  Pbm.save img_noisy "3_noisy_stream.pbm";
-  
-  let nb_bit_errors = Channels.count_errors bits_transmission bits_received in
-  Printf.printf "   -> %d bits erronés.\n" nb_bit_errors;
+  (* On dédoublonne les facteurs *)
+  List.sort_uniq Int.compare (aux 2 n [])
 
+(* Test si un polynôme P est primitif pour l'ordre n *)
+let is_primitive p n =
+  let open FqX in
+  let factors = get_prime_factors n in
+  (* Condition 1 : X^n = 1 mod P (toujours vrai pour un irréductible de bon degré) *)
+  (* Condition 2 : X^(n/f) != 1 mod P pour tout facteur premier f *)
+  let x_poly = [|Fq.zero; Fq.one|] in (* Le polynôme X *)
+  List.for_all (fun f ->
+    let check_deg = n / f in
+    let res = poly_pow_mod x_poly check_deg p in
+    not (res = one) (* Doit être différent de 1 *)
+  ) factors
 
-  (* 5. Décodage *)
-  Printf.printf "4. Réception & Décodage...\n";
-  let bits_corrected = Array.make (w_bits * h) 0 in
+let find_primitive_poly_robust degree =
+  Printf.printf "[INFO] Recherche Monte-Carlo (Irréductible + Primitif) pour n=%d...\n" n_gen;
+  let rec attempt () =
+    let coeffs = Array.init (degree + 1) (fun i ->
+      if i = degree then 1 else Random.int q
+    ) in
+    if coeffs.(0) = 0 then attempt ()
+    else
+      let p = FqX.of_array coeffs in
+      (* 1. Irréductibilité (Rapide) *)
+      let _, factors = FqX.berlekamp p in
+      if List.length factors = 1 then
+        (* 2. Primitivité (Crucial) *)
+        if is_primitive p n_gen then p
+        else attempt () (* Irréductible mais pas primitif -> on rejette *)
+      else attempt ()
+  in
+  attempt ()
+
+let poly_prim_code = find_primitive_poly_robust m
+let () = Printf.printf "[INFO] Polynôme validé : %s\n" (FqX.to_string poly_prim_code)
+
+module AutoBCHParams : BCH_PARAM with module FqX = FqX = struct
+  module FqX = FqX
+  let primitive_p = poly_prim_code
+  let delta = (2 * t) + 1
+end
+
+let () = Printf.printf "[INFO] Construction BCH...\n"
+module MyBCH = BchCode(AutoBCHParams)
+
+(* ========================================================================== *)
+(* 3. BIT-PACKING                                                             *)
+(* ========================================================================== *)
+
+module BitPacker = struct
+  let bits_to_int bits =
+    let acc = ref 0 in
+    for i = 0 to Array.length bits - 1 do
+      acc := (!acc lsl 1) lor bits.(i)
+    done;
+    !acc
+
+  let int_to_bits v num_bits =
+    Array.init num_bits (fun i -> (v lsr (num_bits - 1 - i)) land 1)
+
+  let pack_bits bits =
+    if s = 1 then bits 
+    else
+      let num_bits = Array.length bits in
+      if s = 0 then [||] else
+      let num_syms = num_bits / s in
+      Array.init num_syms (fun i ->
+        let chunk = Array.sub bits (i * s) s in
+        bits_to_int chunk
+      )
+
+  let unpack_symbols syms =
+    if s = 1 then syms 
+    else
+      let num_syms = Array.length syms in
+      let bits = Array.make (num_syms * s) 0 in
+      for i = 0 to num_syms - 1 do
+        let b = int_to_bits syms.(i) s in
+        Array.blit b 0 bits (i * s) s
+      done;
+      bits
+end
+
+(* ========================================================================== *)
+(* 4. TEST                                                                    *)
+(* ========================================================================== *)
+
+let run_test () =
+  Channels.init ();
+  let k_syms = MyBCH.k in
+  let n_syms = MyBCH.n in
   
-  let total_symbol_errors = ref 0 in
-  
-  for y = 0 to h - 1 do
-    (* A. Lecture ligne bruitée (Bits) *)
-    let row_received_bits = Array.sub bits_received (y * w_encoded_bits) w_encoded_bits in
+  if k_syms <= 0 then failwith "k <= 0";
+
+  let k_bits = k_syms * s in 
+  let n_bits = n_syms * s in
+
+  let raw_size_bits = img_width * img_height in
+  let num_blocks = (raw_size_bits + k_bits - 1) / k_bits in 
+  let padded_size_bits = num_blocks * k_bits in
+  let total_tx_bits = num_blocks * n_bits in
+  let rate = float_of_int k_syms /. float_of_int n_syms in
+
+  Printf.printf "\n=== BCH(%d, %d) sur F%d ===\n" n_syms k_syms q;
+  Printf.printf "1. STATISTIQUES\n";
+  Printf.printf "   - Capacité (t) : %d symboles\n" t;
+  Printf.printf "   - Taux (R)     : %.2f%%\n" (rate *. 100.);
+  Printf.printf "   - Débit utile  : %d bits / %d envoyés\n" raw_size_bits total_tx_bits;
+
+  let img_source = Pbm.create_pattern img_width img_height in
+  Pbm.save img_source "1_source.pbm";
+  let data_source = Utils.complete_array 0 padded_size_bits img_source.data in
+
+  Printf.printf "[...] Encodage\n";
+  let encoded_stream = Array.make (num_blocks * n_bits) 0 in
+  for i = 0 to num_blocks - 1 do
+    let msg_bits = Array.sub data_source (i * k_bits) k_bits in
+    let msg_syms = BitPacker.pack_bits msg_bits in
+    let code_syms = Utils.complete_array 0 n_syms (MyBCH.encode msg_syms) in
+    let code_bits = BitPacker.unpack_symbols code_syms in
+    Array.blit code_bits 0 encoded_stream (i * n_bits) n_bits
+  done;
+
+  Printf.printf "[...] Canal (Gilbert-Elliott)\n";
+  let noisy_stream = Channels.gilbert_elliott 
+    ~p_gb:0.010 ~p_bg:0.400 ~err_g:0.00 ~err_b:0.50 
+    encoded_stream 
+  in
+  let channel_errors = Channels.count_errors encoded_stream noisy_stream in
+
+  let noisy_visual = Array.make padded_size_bits 0 in
+  for i = 0 to num_blocks - 1 do
+    let msg_start = (n_syms - k_syms) * s in 
+    Array.blit noisy_stream (i*n_bits + msg_start) noisy_visual (i*k_bits) k_bits
+  done;
+  let final_view = Array.sub noisy_visual 0 raw_size_bits in
+  Pbm.save (Pbm.of_channel_output img_width img_height final_view) "2_bruitee.pbm";
+  let visible_errors = Channels.count_errors img_source.data final_view in
+
+  Printf.printf "[...] Décodage\n";
+  let decoded_data = Array.make padded_size_bits 0 in
+  let failures = ref 0 in
+
+  for i = 0 to num_blocks - 1 do
+    let rx_bits = Array.sub noisy_stream (i * n_bits) n_bits in
+    let rx_syms = BitPacker.pack_bits rx_bits in
     
-    (* B. Démultiplication Inverse : Bits -> Symboles *)
-    (* C'est là que la "compression d'erreurs" se fait : *)
-    (* 5 bits faux à la suite peuvent tomber dans le même symbole *)
-    let received_symbols = Demultiplication.bits_to_symbols row_received_bits in
-    
-    (* C. Correction RS *)
-    let corrected_symbols = 
-      match MyRS.correct received_symbols with
-      | Some c -> 
-          (* Statistique pour le TIPE : compter combien de symboles ont été changés *)
-          (* pour comparer au nombre de bits *)
-          let diff = ref 0 in
-          Array.iter2 (fun a b -> if a <> b then incr diff) received_symbols (Utils.complete_array 0 n_rs c);
-          total_symbol_errors := !total_symbol_errors + !diff;
-          c
-      | None -> received_symbols (* Echec *)
+    let res_syms = 
+      try
+        match MyBCH.correct rx_syms with
+        | Some c -> 
+            let full = Utils.complete_array 0 n_syms c in
+            Array.sub full (n_syms - k_syms) k_syms
+        | None -> 
+            incr failures;
+            Array.sub rx_syms (n_syms - k_syms) k_syms
+      with Division_by_zero ->
+        incr failures;
+        Array.sub rx_syms (n_syms - k_syms) k_syms
     in
     
-    let full_corrected = Utils.complete_array 0 n_rs corrected_symbols in
-    
-    (* D. Extraction Message (supposons systématique sur les symboles) *)
-    (* Dans BchCode, systématique => Message à la fin (degrés élevés) *)
-    let msg_symbols = Array.sub full_corrected (n_rs - k_rs) k_rs in
-    
-    (* E. Démultiplication : Symboles -> Bits *)
-    let msg_bits = Demultiplication.symbols_to_bits msg_symbols in
-    
-    (* Ecriture *)
-    Array.blit msg_bits 0 bits_corrected (y * w_bits) w_bits;
+    let res_bits = BitPacker.unpack_symbols res_syms in
+    Array.blit res_bits 0 decoded_data (i * k_bits) k_bits
   done;
 
-  let img_final = Pbm.of_channel_output w_bits h bits_corrected in
-  Pbm.save img_final "4_corrected.pbm";
+  let final_bits = Array.sub decoded_data 0 raw_size_bits in
+  Pbm.save (Pbm.of_channel_output img_width img_height final_bits) "3_corrigee.pbm";
   
-  let err_finale = Channels.count_errors img_source.data bits_corrected in
-  
-  Printf.printf "   STATISTIQUES TIPE :\n";
-  Printf.printf "   - Bits corrompus (Physique) : %d\n" nb_bit_errors;
-  Printf.printf "   - Symboles corrompus (Algébrique) : %d\n" !total_symbol_errors;
-  Printf.printf "   - Ratio (Bits / Symboles) : %.2f\n" (float_of_int nb_bit_errors /. float_of_int !total_symbol_errors);
-  Printf.printf "   (Un ratio > 1 prouve l'efficacité de la démultiplication contre les rafales)\n";
-  
-  Printf.printf "   -> Erreurs résiduelles : %d\n" err_finale
+  let residual_errors = Channels.count_errors img_source.data final_bits in
+  let corrected_count = visible_errors - residual_errors in
 
-let () = run_demo ()
+  Printf.printf "\n2. RÉSULTATS\n";
+  Printf.printf "   - Bruit injecté      : %d bits (%d visibles)\n" channel_errors visible_errors;
+  Printf.printf "   - Erreurs corrigées  : %d\n" corrected_count;
+  Printf.printf "   - Erreurs restantes  : %d\n" residual_errors;
+  
+  if residual_errors = 0 then 
+    Printf.printf "\n>>> SUCCÈS TOTAL <<<\n"
+  else 
+    Printf.printf "\n>>> Correction Partielle : %.1f%% <<<\n" 
+      (100. *. float_of_int corrected_count /. float_of_int visible_errors)
+
+let () = run_test ()

@@ -1,0 +1,61 @@
+================================================================================
+SYNTHÈSE DE TEST : CODE CORRECTEUR BCH(15, 7) SUR CANAL À MÉMOIRE
+Date : [Date du jour]
+================================================================================
+
+1. PARAMÈTRES DU SYSTÈME
+--------------------------------------------------------------------------------
+Type de Code      : BCH (Bose-Chaudhuri-Hocquenghem) Binaire
+Dimension (n)     : 15 bits (Taille totale du bloc)
+Dimension (k)     : 7 bits (Taille du message utile)
+Redondance        : 8 bits (n - k)
+Capacité (t)      : 2 erreurs corrigibles par bloc
+Taux de code      : R = k/n ≈ 0.47
+Polynôme Primitif : P(X) = 1 + X^3 + X^4 (sur GF(2^4))
+
+Donnée Source     : Image PBM (Noir & Blanc)
+Dimensions        : 64 x 64 pixels
+Taille totale     : 4096 bits (env. 586 blocs de 7 bits)
+
+2. PARAMÈTRES DU CANAL (MODÈLE GILBERT-ELLIOTT)
+--------------------------------------------------------------------------------
+Type de bruit     : Erreurs en rafales (Burst Errors)
+Modèle            : Chaîne de Markov à 2 états (Good / Bad)
+  - Prob. Entrée en rafale (Good -> Bad) : 3%  (p_gb = 0.03)
+  - Prob. Sortie de rafale (Bad -> Good) : 30% (p_bg = 0.30)
+  - Espérance durée rafale               : ~3.3 bits (1 / p_bg)
+  - Taux d'erreur dans rafale            : 50%
+
+3. RÉSULTATS QUANTITATIFS
+--------------------------------------------------------------------------------
+A. Transmission
+   - Erreurs totales introduites (Flux)  : 429 bits
+   - Erreurs visibles sur l'image brute  : 215 pixels (Impact visuel direct)
+
+B. Correction (Décodage)
+   - Blocs marqués en échec (rejetés)    : 3 blocs
+   - Erreurs restantes après correction  : 132 pixels
+   - Nombre d'erreurs corrigées          : 83 pixels
+
+C. Performance
+   - Taux de correction effectif         : 38.6% des erreurs visibles éliminées
+   - Intégrité finale                    : Image partiellement reconstruite
+
+4. ANALYSE ET INTERPRÉTATION
+--------------------------------------------------------------------------------
+Le nombre significatif d'erreurs résiduelles (132) s'explique par la nature
+des rafales du canal Gilbert-Elliott.
+
+1. Saturation de la capacité :
+   Le code BCH(15,7) ne peut corriger que t=2 erreurs. Or, les rafales générées
+   ont une longueur moyenne de 3.3 bits, provoquant souvent 3 erreurs ou plus
+   au sein d'un même bloc de 15 bits.
+
+2. Phénomène de Fausse Correction :
+   Seuls 3 blocs ont été détectés comme "incohérents". Pour les autres blocs
+   erronés non corrigés, l'algorithme a convergé vers un mauvais mot de code
+   (miscorrection), laissant ou ajoutant des erreurs au lieu de les signaler.
+
+Conclusion : Pour ce type de canal, un entrelacement (démultiplication) est
+nécessaire pour disperser les rafales et rendre le code BCH efficace.
+================================================================================
