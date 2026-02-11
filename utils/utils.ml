@@ -56,6 +56,15 @@ let divisors (n : int) : int list =
   in
   aux [] 2
 
+let get_prime_factors n =
+  let rec aux d n acc =
+    if n = 1 then acc
+    else if n mod d = 0 then aux d (n / d) (d :: acc)
+    else aux (d + 1) n acc
+  in
+  (* On dédoublonne les facteurs *)
+  List.sort_uniq Int.compare (aux 2 n [])
+
 let split_array (c : 'a) (n : int) (a : 'a array) : 'a array list =
   let l = Array.length a in
   let rec aux i =

@@ -52,7 +52,6 @@ let n_gen =
   let q_pow_m = int_of_float (float_of_int q ** float_of_int m) in
   q_pow_m - 1
 
-(* --- NOUVEAU : VERIFICATION DE PRIMITIVITE --- *)
 (* Exponentiation modulaire de polynômes : (A^power) mod M *)
 let rec poly_pow_mod a power m =
   let open FqX in
@@ -67,30 +66,22 @@ let rec poly_pow_mod a power m =
     r
 
 (* Factorisation basique pour trouver les facteurs premiers de n *)
-let get_prime_factors n =
-  let rec aux d n acc =
-    if n = 1 then acc
-    else if n mod d = 0 then aux d (n / d) (d :: acc)
-    else aux (d + 1) n acc
-  in
-  (* On dédoublonne les facteurs *)
-  List.sort_uniq Int.compare (aux 2 n [])
+
 
 (* Test si un polynôme P est primitif pour l'ordre n *)
 let is_primitive p n =
   let open FqX in
-  let factors = get_prime_factors n in
+  let factors = Utils.get_prime_factors n in
   (* Condition 1 : X^n = 1 mod P (toujours vrai pour un irréductible de bon degré) *)
   (* Condition 2 : X^(n/f) != 1 mod P pour tout facteur premier f *)
-  let x_poly = [|Fq.zero; Fq.one|] in (* Le polynôme X *)
   List.for_all (fun f ->
     let check_deg = n / f in
-    let res = poly_pow_mod x_poly check_deg p in
+    let res = poly_pow_mod x check_deg p in
     not (res = one) (* Doit être différent de 1 *)
   ) factors
 
 let find_primitive_poly_robust degree =
-  Printf.printf "[INFO] Recherche Monte-Carlo (Irréductible + Primitif) pour n=%d...\n" n_gen;
+  Printf.printf "[INFO] Recherche Monte-Carlo (converti en Las-Vegas) (Irréductible + Primitif) pour n=%d...\n" n_gen;
   let rec attempt () =
     let coeffs = Array.init (degree + 1) (fun i ->
       if i = degree then 1 else Random.int q
@@ -121,45 +112,7 @@ let () = Printf.printf "[INFO] Construction BCH...\n"
 module MyBCH = BchCode(AutoBCHParams)
 
 (* ========================================================================== *)
-(* 3. BIT-PACKING                                                             *)
-(* ========================================================================== *)
-
-module BitPacker = struct
-  let bits_to_int bits =
-    let acc = ref 0 in
-    for i = 0 to Array.length bits - 1 do
-      acc := (!acc lsl 1) lor bits.(i)
-    done;
-    !acc
-
-  let int_to_bits v num_bits =
-    Array.init num_bits (fun i -> (v lsr (num_bits - 1 - i)) land 1)
-
-  let pack_bits bits =
-    if s = 1 then bits 
-    else
-      let num_bits = Array.length bits in
-      if s = 0 then [||] else
-      let num_syms = num_bits / s in
-      Array.init num_syms (fun i ->
-        let chunk = Array.sub bits (i * s) s in
-        bits_to_int chunk
-      )
-
-  let unpack_symbols syms =
-    if s = 1 then syms 
-    else
-      let num_syms = Array.length syms in
-      let bits = Array.make (num_syms * s) 0 in
-      for i = 0 to num_syms - 1 do
-        let b = int_to_bits syms.(i) s in
-        Array.blit b 0 bits (i * s) s
-      done;
-      bits
-end
-
-(* ========================================================================== *)
-(* 4. TEST                                                                    *)
+(* 3. TEST                                                                    *)
 (* ========================================================================== *)
 
 let run_test () =
@@ -192,9 +145,9 @@ let run_test () =
   let encoded_stream = Array.make (num_blocks * n_bits) 0 in
   for i = 0 to num_blocks - 1 do
     let msg_bits = Array.sub data_source (i * k_bits) k_bits in
-    let msg_syms = BitPacker.pack_bits msg_bits in
+    let msg_syms = Bitpacker.pack_bits s msg_bits in
     let code_syms = Utils.complete_array 0 n_syms (MyBCH.encode msg_syms) in
-    let code_bits = BitPacker.unpack_symbols code_syms in
+    let code_bits = Bitpacker.unpack_symbols s code_syms in
     Array.blit code_bits 0 encoded_stream (i * n_bits) n_bits
   done;
 
@@ -220,7 +173,7 @@ let run_test () =
 
   for i = 0 to num_blocks - 1 do
     let rx_bits = Array.sub noisy_stream (i * n_bits) n_bits in
-    let rx_syms = BitPacker.pack_bits rx_bits in
+    let rx_syms = Bitpacker.pack_bits s rx_bits in
     
     let res_syms = 
       try
@@ -236,7 +189,7 @@ let run_test () =
         Array.sub rx_syms (n_syms - k_syms) k_syms
     in
     
-    let res_bits = BitPacker.unpack_symbols res_syms in
+    let res_bits = Bitpacker.unpack_symbols s res_syms in
     Array.blit res_bits 0 decoded_data (i * k_bits) k_bits
   done;
 

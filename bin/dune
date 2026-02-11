@@ -1,5 +1,5 @@
 (executable
  (public_name main)
  (name main)
- (libraries lablgtk3 polynomes bch unix pbm channels)
+ (libraries lablgtk3 polynomes bch unix pbm channels bitpacker)
  (flags -g -warn-error -k))
