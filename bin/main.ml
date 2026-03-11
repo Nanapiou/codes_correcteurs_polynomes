@@ -1,7 +1,3 @@
-(* ========================================================================== *)
-(* MAIN.ML - VERSION FINALE : PRIMITIVITÉ GARANTIE                            *)
-(* ========================================================================== *)
-
 open Utils
 open Algebric_structures
 open Rings
@@ -16,18 +12,17 @@ open Pbm
 (* 1. CONFIGURATION                                                           *)
 (* ========================================================================== *)
 
-let img_width = 64
-let img_height = 64
+let img_width = 128
+let img_height = 128
 
-(* s=4 (Hexa) : Optimum pour les rafales courtes *)
-let s = 4 
+let s = 4
 
 let q = 1 lsl s
 
-let m, t = 
+let m, t =
   match s with
-  | 1 -> (8, 25) 
-  | 4 -> (2, 14) (* n=255, t=14 *)
+  | 1 -> (8, 25)
+  | 4 -> (2, 16)
   | _ -> (2, 2)
 
 (* ========================================================================== *)
@@ -41,18 +36,17 @@ end
 module F2 = MakeExtendedField(F2Params)
 module F2X = MakePoly(F2)
 
-let poly_prim_s = F2X.primitive_polynome ((1 lsl s) - 1)
+let poly_prim_s = F2X.primitive_polynome (q - 1)
 module Fq = MakePolyExtendedField(struct
   module Ring = F2X
   let p = poly_prim_s
 end)
 module FqX = MakePoly(Fq)
 
-let n_gen = 
+let n_gen =
   let q_pow_m = int_of_float (float_of_int q ** float_of_int m) in
   q_pow_m - 1
 
-(* Exponentiation modulaire de polynômes : (A^power) mod M *)
 let rec poly_pow_mod a power m =
   let open FqX in
   if power = 0 then one
@@ -64,9 +58,6 @@ let rec poly_pow_mod a power m =
     let t = poly_pow_mod a (power - 1) m in
     let _, r = euclidean_div (a *^ t) m in
     r
-
-(* Factorisation basique pour trouver les facteurs premiers de n *)
-
 
 (* Test si un polynôme P est primitif pour l'ordre n *)
 let is_primitive p n =
@@ -80,7 +71,7 @@ let is_primitive p n =
     not (res = one) (* Doit être différent de 1 *)
   ) factors
 
-let find_primitive_poly_robust degree =
+let find_primitive_poly_proba degree =
   Printf.printf "[INFO] Recherche Monte-Carlo (converti en Las-Vegas) (Irréductible + Primitif) pour n=%d...\n" n_gen;
   let rec attempt () =
     let coeffs = Array.init (degree + 1) (fun i ->
@@ -89,17 +80,16 @@ let find_primitive_poly_robust degree =
     if coeffs.(0) = 0 then attempt ()
     else
       let p = FqX.of_array coeffs in
-      (* 1. Irréductibilité (Rapide) *)
       let _, factors = FqX.berlekamp p in
       if List.length factors = 1 then
-        (* 2. Primitivité (Crucial) *)
         if is_primitive p n_gen then p
         else attempt () (* Irréductible mais pas primitif -> on rejette *)
       else attempt ()
   in
   attempt ()
 
-let poly_prim_code = find_primitive_poly_robust m
+(* let poly_prim_code = find_primitive_poly_proba m *)
+let poly_prim_code = FqX.primitive_polynome m
 let () = Printf.printf "[INFO] Polynôme validé : %s\n" (FqX.to_string poly_prim_code)
 
 module AutoBCHParams : BCH_PARAM with module FqX = FqX = struct
@@ -111,6 +101,10 @@ end
 let () = Printf.printf "[INFO] Construction BCH...\n"
 module MyBCH = BchCode(AutoBCHParams)
 
+
+let noisy_channel = Channels.gilbert_elliott
+  ~p_gb:0.010 ~p_bg:0.400 ~err_g:0.00 ~err_b:0.50
+
 (* ========================================================================== *)
 (* 3. TEST                                                                    *)
 (* ========================================================================== *)
@@ -119,14 +113,14 @@ let run_test () =
   Channels.init ();
   let k_syms = MyBCH.k in
   let n_syms = MyBCH.n in
-  
+
   if k_syms <= 0 then failwith "k <= 0";
 
-  let k_bits = k_syms * s in 
+  let k_bits = k_syms * s in
   let n_bits = n_syms * s in
 
   let raw_size_bits = img_width * img_height in
-  let num_blocks = (raw_size_bits + k_bits - 1) / k_bits in 
+  let num_blocks = (raw_size_bits + k_bits - 1) / k_bits in
   let padded_size_bits = num_blocks * k_bits in
   let total_tx_bits = num_blocks * n_bits in
   let rate = float_of_int k_syms /. float_of_int n_syms in
@@ -152,15 +146,12 @@ let run_test () =
   done;
 
   Printf.printf "[...] Canal (Gilbert-Elliott)\n";
-  let noisy_stream = Channels.gilbert_elliott 
-    ~p_gb:0.010 ~p_bg:0.400 ~err_g:0.00 ~err_b:0.50 
-    encoded_stream 
-  in
+  let noisy_stream = noisy_channel encoded_stream in
   let channel_errors = Channels.count_errors encoded_stream noisy_stream in
 
   let noisy_visual = Array.make padded_size_bits 0 in
   for i = 0 to num_blocks - 1 do
-    let msg_start = (n_syms - k_syms) * s in 
+    let msg_start = (n_syms - k_syms) * s in
     Array.blit noisy_stream (i*n_bits + msg_start) noisy_visual (i*k_bits) k_bits
   done;
   let final_view = Array.sub noisy_visual 0 raw_size_bits in
@@ -174,28 +165,28 @@ let run_test () =
   for i = 0 to num_blocks - 1 do
     let rx_bits = Array.sub noisy_stream (i * n_bits) n_bits in
     let rx_syms = Bitpacker.pack_bits s rx_bits in
-    
-    let res_syms = 
+
+    let res_syms =
       try
         match MyBCH.correct rx_syms with
-        | Some c -> 
+        | Some c ->
             let full = Utils.complete_array 0 n_syms c in
             Array.sub full (n_syms - k_syms) k_syms
-        | None -> 
+        | None ->
             incr failures;
             Array.sub rx_syms (n_syms - k_syms) k_syms
       with Division_by_zero ->
         incr failures;
         Array.sub rx_syms (n_syms - k_syms) k_syms
     in
-    
+
     let res_bits = Bitpacker.unpack_symbols s res_syms in
     Array.blit res_bits 0 decoded_data (i * k_bits) k_bits
   done;
 
   let final_bits = Array.sub decoded_data 0 raw_size_bits in
   Pbm.save (Pbm.of_channel_output img_width img_height final_bits) "3_corrigee.pbm";
-  
+
   let residual_errors = Channels.count_errors img_source.data final_bits in
   let corrected_count = visible_errors - residual_errors in
 
@@ -203,11 +194,11 @@ let run_test () =
   Printf.printf "   - Bruit injecté      : %d bits (%d visibles)\n" channel_errors visible_errors;
   Printf.printf "   - Erreurs corrigées  : %d\n" corrected_count;
   Printf.printf "   - Erreurs restantes  : %d\n" residual_errors;
-  
-  if residual_errors = 0 then 
+
+  if residual_errors = 0 then
     Printf.printf "\n>>> SUCCÈS TOTAL <<<\n"
-  else 
-    Printf.printf "\n>>> Correction Partielle : %.1f%% <<<\n" 
+  else
+    Printf.printf "\n>>> Correction Partielle : %.1f%% <<<\n"
       (100. *. float_of_int corrected_count /. float_of_int visible_errors)
 
 let () = run_test ()

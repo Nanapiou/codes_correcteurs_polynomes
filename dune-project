@@ -1,26 +1,24 @@
 (lang dune 3.19)
 
-(name polynomes)
+(name bch_codes_polynomes)
 
 (generate_opam_files true)
 
 (source
- (github username/reponame))
+ (github nanapiou/polynomes))
 
-(authors "Author Name <author@example.com>")
+(authors "Nanapiou")
 
-(maintainers "Maintainer Name <maintainer@example.com>")
+(maintainers "Nanapiou")
 
 (license LICENSE)
 
-(documentation https://url/to/documentation)
-
 (package
  (name polynomes)
- (synopsis "A short synopsis")
- (description "A longer description")
+ (synopsis "Implementation of BCH codes using polynomes themselves")
+ (description "...")
  (depends ocaml)
  (tags
-  ("add topics" "to describe" your project)))
+  ("error correction codes" "polynomes" "algebra" "ocaml")))
 
 ; See the complete stanza docs at https://dune.readthedocs.io/en/stable/reference/dune-project/index.html

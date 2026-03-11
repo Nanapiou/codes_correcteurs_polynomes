@@ -6,7 +6,7 @@ type data = int array
 let flip bit = 1 - bit
 
 (* ======================================================================== *)
-(* 1. CANAL SYMÉTRIQUE BINAIRE (BSC - Binary Symmetric Channel)             *)
+(* CANAL SYMÉTRIQUE BINAIRE (BSC - Binary Symmetric Channel)                *)
 (* C'est le bruit "blanc" classique. Chaque bit a une probabilité p         *)
 (* d'être inversé, indépendamment des autres.                               *)
 (* ======================================================================== *)
@@ -14,7 +14,7 @@ let bsc (p : float) (input : data) : data =
   Array.map (fun bit -> if Random.float 1.0 < p then flip bit else bit) input
 
 (* ======================================================================== *)
-(* 2. MODÈLE DE GILBERT-ELLIOTT (Canal à Mémoire / Bouffées d'erreurs)      *)
+(* MODÈLE DE GILBERT-ELLIOTT (Canal à Mémoire / Bouffées d'erreurs)         *)
 (* Modélisé par une chaîne de Markov à deux états :                         *)
 (* - G (Good) : État calme, peu d'erreurs.                                  *)
 (* - B (Bad)  : État bruité, beaucoup d'erreurs (la "bouffée").             *)
@@ -33,31 +33,25 @@ let gilbert_elliott ~p_gb ~p_bg ~err_g ~err_b (input : data) : data =
 
   Array.map
     (fun bit ->
-      (* 1. Déterminer la probabilité d'erreur selon l'état actuel *)
       let current_error_prob =
         match !current_state with Good -> err_g | Bad -> err_b
       in
 
-      (* 2. Appliquer l'erreur potentielle *)
       let output_bit =
         if Random.float 1.0 < current_error_prob then flip bit else bit
-      in
+      in 
 
-      (* 3. Transition d'état pour le prochain bit (Markov) *)
-      let next_state =
+      begin current_state := 
         match !current_state with
         | Good -> if Random.float 1.0 < p_gb then Bad else Good
-        | Bad ->
-            if Random.float 1.0 < p_bg then Good
-            else Bad (* 1 - p_bg = rester en Bad *)
-      in
-      current_state := next_state;
+        | Bad -> if Random.float 1.0 < p_bg then Good else Bad
+      end;
 
       output_bit)
     input
 
 (* ======================================================================== *)
-(* 3. CANAL À EFFACEMENT (Erasure Channel) simulé par remplissage à 0       *)
+(* CANAL À EFFACEMENT (Erasure Channel) simulé par remplissage à 0          *)
 (* Simule une perte de signal où le récepteur lit '0' par défaut.           *)
 (* Ce n'est pas une inversion, c'est un écrasement.                         *)
 (* ======================================================================== *)
@@ -66,7 +60,7 @@ let erasure (p : float) (input : data) : data =
 
 (* ======================================================================== *)
 (* OUTILS D'ANALYSE                                                         *)
-(* Pour visualiser les erreurs introduites (différence entrée/sortie)         *)
+(* Pour visualiser les erreurs introduites (différence entrée/sortie)       *)
 (* ======================================================================== *)
 
 (* Renvoie une chaîne montrant les erreurs : '.' = ok, 'X' = erreur *)
