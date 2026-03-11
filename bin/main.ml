@@ -89,7 +89,7 @@ let find_primitive_poly_proba degree =
   attempt ()
 
 (* let poly_prim_code = find_primitive_poly_proba m *)
-let poly_prim_code = FqX.primitive_polynome m
+let poly_prim_code = FqX.primitive_polynome m (* No, q^m-1 *)
 let () = Printf.printf "[INFO] Polynôme validé : %s\n" (FqX.to_string poly_prim_code)
 
 module AutoBCHParams : BCH_PARAM with module FqX = FqX = struct

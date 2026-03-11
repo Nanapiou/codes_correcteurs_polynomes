@@ -337,6 +337,6 @@ functor
       let coef, factors = berlekamp p in
       (coef, aux [] factors)
 
-    let primitive_polynome n =
+    let primitive_polynome n = (* TODO, care about the link beetween n, q and the degree of phi_n factors. See Proposition 9.17 from Cours d'Algebre *)
       n |> cyclotomic |> berlekamp_irreductible |> snd |> List.hd
   end

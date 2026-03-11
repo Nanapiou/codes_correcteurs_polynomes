@@ -14,7 +14,7 @@
 (license LICENSE)
 
 (package
- (name polynomes)
+ (name bch_codes_polynomes)
  (synopsis "Implementation of BCH codes using polynomes themselves")
  (description "...")
  (depends ocaml)
