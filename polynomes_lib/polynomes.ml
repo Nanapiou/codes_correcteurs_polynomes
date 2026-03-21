@@ -114,7 +114,9 @@ module MakePolyExtendedField (P : POLY_EXTENDED_FIELD_PARAM) :
     let q, r = Ring.euclidean_div a b in
     (normalize q, normalize r)
 
-  let is_primitive = Ring.is_primitive (* Honestly, not supposed to be used. Used as a field, not as pol ring *)
+  let is_primitive = Ring.is_primitive
+  (* Honestly, not supposed to be used. Used as a field, not as pol ring *)
+
   let primitive_polynome_proba = Ring.primitive_polynome_proba (* Same *)
 
   let order =
@@ -375,26 +377,26 @@ functor
           not (res = one))
         factors
 
-    let primitive_polynome_proba (d: int): t =
+    let primitive_polynome_proba (d : int) : t =
       let rec attempt () =
-        let coeffs = Array.init (d + 1) (fun i ->
-          if i = d then 1 else Random.int F.order
-        ) in
+        let coeffs =
+          Array.init (d + 1) (fun i -> if i = d then 1 else Random.int F.order)
+        in
         if coeffs.(0) = 0 then attempt ()
         else
           let p = of_array coeffs in
 
           (* TEST SANS FACTEUR CARRÉ (nécessaire pour Berlekamp) *)
-          let dp = derive p in 
-          if dp = zero then attempt () (* P' = 0 => Carré parfait => On rejette *)
+          let dp = derive p in
+          if dp = zero then attempt ()
+            (* P' = 0 => Puissances de P multiples de la caractétistique => P(X^p)=P(X)^p => On rejette *)
           else
             let g, _, _ = egcd p dp in
             if deg g > 0 then attempt () (* Racine multiple => On rejette *)
             else
               let _, factors = berlekamp p in
               if List.length factors = 1 then
-                if is_primitive p d then p
-                else attempt ()
+                if is_primitive p d then p else attempt ()
               else attempt ()
       in
       attempt ()

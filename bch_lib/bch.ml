@@ -65,9 +65,11 @@ module BchCode (P : BCH_PARAM) = struct
   end)
 
   let sigma i =
-    let rec aux: int list -> int list = function
-      | h :: t when (h - i) mod n = 0 && t <> [] -> t (* We're sure to reach a k (equals to the size of the class) which verify q^k i = i [n] *)
-      | h :: _ as acc -> aux (((q * h) mod n) :: acc)
+    let rec aux : int list -> int list = function
+      | h :: t when (h - i) mod n = 0 && t <> [] ->
+          t
+          (* We're sure to reach a k (equals to the size of the class) which verify q^k i = i [n] *)
+      | h :: _ as acc -> aux ((q * h mod n) :: acc)
       | [] -> failwith "Nah doesn't happen"
     in
     IntSet.of_list (aux [ i ])
