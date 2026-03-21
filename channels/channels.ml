@@ -1,6 +1,3 @@
-let init () = Random.self_init ()
-let init_seed n = Random.init n
-
 type data = int array
 
 let flip bit = 1 - bit

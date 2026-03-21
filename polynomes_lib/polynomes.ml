@@ -26,6 +26,8 @@ module type POLY_EUCLIDEAN_RING = sig
   val primitive_polynome : int -> t
   val berlekamp : t -> t * t list
   val berlekamp_irreductible : t -> t * t list
+  val is_primitive : t -> int -> bool
+  val primitive_polynome_proba : int -> t
   val of_array : int array -> t
   val to_array : t -> int array
 end
@@ -111,6 +113,9 @@ module MakePolyExtendedField (P : POLY_EXTENDED_FIELD_PARAM) :
   let euclidean_div a b =
     let q, r = Ring.euclidean_div a b in
     (normalize q, normalize r)
+
+  let is_primitive = Ring.is_primitive (* Honestly, not supposed to be used. Used as a field, not as pol ring *)
+  let primitive_polynome_proba = Ring.primitive_polynome_proba (* Same *)
 
   let order =
     if F.order = -1 then -1
@@ -224,7 +229,7 @@ functor
 
     let derive p : t =
       let p' = Array.mapi F.external_mul p in
-      Array.sub p' 1 (deg p)
+      normalize @@ Array.sub p' 1 (deg p)
 
     let reciprocal (p : t) : t =
       let d = deg p in
@@ -305,9 +310,9 @@ functor
       let m = MnFq.transpose mt in
       let g = MnFq.kernel_element m in
       (* Printf.printf "g: %s\n" (to_string g);
-    Printf.printf "S(g): %s\n" (to_string @@ modp (s g));
-    Printf.printf "m:\n%s" @@ MnFq.to_string m;
-    print_endline @@ MnFq.vector_to_string (MnFq.apply m g); *)
+      Printf.printf "S(g): %s\n" (to_string @@ modp (s g));
+      Printf.printf "m:\n%s" @@ MnFq.to_string m;
+      print_endline @@ MnFq.vector_to_string (MnFq.apply m g); *)
       if Array.exists (( <> ) F.zero) g then
         ( p_coef *. one,
           List.filter_map
@@ -337,6 +342,60 @@ functor
       let coef, factors = berlekamp p in
       (coef, aux [] factors)
 
-    let primitive_polynome n = (* TODO, care about the link beetween n, q and the degree of phi_n factors. See Proposition 9.17 from Cours d'Algebre *)
-      n |> cyclotomic |> berlekamp_irreductible |> snd |> List.hd
+    let primitive_polynome d =
+      (* See Proposition 9.17 from Cours d'Algebre *)
+      assert (F.order <> -1);
+      int_of_float (float_of_int F.order ** float_of_int d) - 1
+      |> cyclotomic |> berlekamp_irreductible |> snd |> List.hd
+
+    let rec exp_mod a power m =
+      if power = 0 then one
+      else if power mod 2 = 0 then
+        let t = exp_mod a (power / 2) m in
+        let _, r = euclidean_div (t *^ t) m in
+        r
+      else
+        let t = exp_mod a (power - 1) m in
+        let _, r = euclidean_div (a *^ t) m in
+        r
+
+    let is_primitive p m =
+      assert (F.order <> -1);
+      let n =
+        let q_pow_m = int_of_float (float_of_int F.order ** float_of_int m) in
+        q_pow_m - 1
+      in
+      let factors = Utils.get_prime_factors n in
+      (* Condition 1 : X^n = 1 mod P (toujours vrai pour un irréductible de bon degré) *)
+      (* Condition 2 : X^(n/f) != 1 mod P pour tout facteur premier f *)
+      List.for_all
+        (fun f ->
+          let check_deg = n / f in
+          let res = exp_mod x check_deg p in
+          not (res = one))
+        factors
+
+    let primitive_polynome_proba (d: int): t =
+      let rec attempt () =
+        let coeffs = Array.init (d + 1) (fun i ->
+          if i = d then 1 else Random.int F.order
+        ) in
+        if coeffs.(0) = 0 then attempt ()
+        else
+          let p = of_array coeffs in
+
+          (* TEST SANS FACTEUR CARRÉ (nécessaire pour Berlekamp) *)
+          let dp = derive p in 
+          if dp = zero then attempt () (* P' = 0 => Carré parfait => On rejette *)
+          else
+            let g, _, _ = egcd p dp in
+            if deg g > 0 then attempt () (* Racine multiple => On rejette *)
+            else
+              let _, factors = berlekamp p in
+              if List.length factors = 1 then
+                if is_primitive p d then p
+                else attempt ()
+              else attempt ()
+      in
+      attempt ()
   end

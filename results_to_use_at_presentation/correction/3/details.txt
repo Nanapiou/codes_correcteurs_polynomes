@@ -1,0 +1,23 @@
+Code de RS
+let noisy_channel = Channels.gilbert_elliott
+  ~p_gb:0.010 ~p_bg:0.400 ~err_g:0.00 ~err_b:0.50
+
+[INFO] Recherche Monte-Carlo (converti en Las-Vegas) (Irréductible + Primitif) pour n=15...
+[INFO] Polynôme validé : (14) + (1)x
+[INFO] Construction BCH...
+
+=== BCH(15, 9) sur F16 ===
+1. STATISTIQUES
+   - Capacité (t) : 3 symboles
+   - Taux (R)     : 60.00%
+   - Débit utile  : 16384 bits / 27360 envoyés
+[...] Encodage
+[...] Canal (Gilbert-Elliott)
+[...] Décodage
+
+2. RÉSULTATS
+   - Bruit injecté      : 352 bits (197 visibles)
+   - Erreurs corrigées  : 173
+   - Erreurs restantes  : 24
+
+>>> Correction Partielle : 87.8% <<<
