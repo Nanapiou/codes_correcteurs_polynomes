@@ -1,0 +1,23 @@
+[INFO] Recherche Monte-Carlo (converti en Las-Vegas) (Irréductible + Primitif) pour n=15...
+[INFO] Polynôme validé : (9) + (1)x
+[INFO] Construction BCH...
+
+=== BCH(15, 9) sur F16 ===
+1. STATISTIQUES
+   - Capacité (t) : 3 symboles
+   - Bose dist (d_b) : 7 symboles
+   - Taux (R)     : 60.00%
+   - Débit utile  : 10000 bits / 16680 envoyés
+[...] Encodage
+[...] Canal (Gilbert-Elliott)
+[...] Décodage
+
+2. RÉSULTATS
+   - Bruit injecté      : 698 bits (427 visibles)
+   - Erreurs corrigées  : 243
+   - Erreurs restantes  : 184
+
+>>> Correction Partielle : 56.9% <<<
+
+q= 2^4
+m=1

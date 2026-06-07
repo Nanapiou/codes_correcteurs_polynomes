@@ -1,0 +1,28 @@
+[INFO] Recherche Monte-Carlo (converti en Las-Vegas) (Irréductible + Primitif) pour n=511...
+[INFO] Polynôme validé : (3) + (4)x^2 + (1)x^3
+[INFO] Construction BCH...
+
+=== BCH(511, 185) sur F8 ===
+1. STATISTIQUES
+   - Capacité (t) : 80 symboles
+   - Bose dist (d_b) : 163 symboles
+   - Taux (R)     : 36.20%
+   - Débit utile  : 10000 bits / 29127 envoyés
+[...] Encodage
+[...] Canal (Gilbert-Elliott)
+[...] Décodage
+
+2. RÉSULTATS
+   - Bruit injecté      : 1258 bits (430 visibles)
+   - Erreurs corrigées  : 430
+   - Erreurs restantes  : 0
+
+>>> SUCCÈS TOTAL <<<
+
+q = 2 ^ 3
+
+m = 3
+
+t = 80
+
+temps d'exec de salopard

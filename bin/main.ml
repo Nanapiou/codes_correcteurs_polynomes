@@ -7,6 +7,7 @@ open Matrixes
 open Bch
 open Channels
 open Pbm
+open Interleaver
 
 let () = Random.self_init ()
 
@@ -14,19 +15,15 @@ let () = Random.self_init ()
 (* 1. CONFIGURATION                                                           *)
 (* ========================================================================== *)
 
-let img_width = 128
-let img_height = 128
+let img_width = 200
+let img_height = 200
 
 let s = 4
  
-let q = 1 lsl s
+let q = 1 lsl s (* 2^s *)
 
-let m, t =
-  match s with
-  | 1 -> (8, 25)
-  | 4 -> (1, 3)
-  | 8 -> (1, 15)
-  | _ -> (2, 2)
+let m = 1
+let t_min = 5
 
 (* ========================================================================== *)
 (* 2. CONSTRUCTION ALGÉBRIQUE                                                 *)
@@ -59,15 +56,18 @@ let () = Printf.printf "[INFO] Polynôme validé : %s\n" (FqX.to_string poly_pri
 module AutoBCHParams : BCH_PARAM with module FqX = FqX = struct
   module FqX = FqX
   let primitive_p = poly_prim_code
-  let delta = (2 * t) + 1
+  let delta = (2 * t_min) + 1
 end
 
 let () = Printf.printf "[INFO] Construction BCH...\n"
 module MyBCH = BchCode(AutoBCHParams)
 
-
+(* Besoin entrelacement *)
 let noisy_channel = Channels.gilbert_elliott
-  ~p_gb:0.005 ~p_bg:0.150 ~err_g:0.00 ~err_b:0.50
+  ~p_gb:0.001 ~p_bg:0.040 ~err_g:0.00 ~err_b:0.50 
+
+(* let noisy_channel = Channels.gilbert_elliott
+  ~p_gb:0.03 ~p_bg:0.300 ~err_g:0.00 ~err_b:0.50 *)
 
 (* ========================================================================== *)
 (* 3. TEST                                                                    *)
@@ -82,15 +82,26 @@ let run_test () =
   let k_bits = k_syms * s in
   let n_bits = n_syms * s in
 
+  (* Paramètre d'entrelacement (à ajuster selon la violence de ton canal) *)
+  let depth = 8 in
+
   let raw_size_bits = img_width * img_height in
-  let num_blocks = (raw_size_bits + k_bits - 1) / k_bits in
+  let num_blocks_initial = (raw_size_bits + k_bits - 1) / k_bits in
+  
+  (* On force num_blocks à être un multiple de 'depth' *)
+  let num_blocks = 
+    if num_blocks_initial mod depth = 0 then num_blocks_initial
+    else num_blocks_initial + (depth - (num_blocks_initial mod depth))
+  in
+
   let padded_size_bits = num_blocks * k_bits in
   let total_tx_bits = num_blocks * n_bits in
   let rate = float_of_int k_syms /. float_of_int n_syms in
 
   Printf.printf "\n=== BCH(%d, %d) sur F%d ===\n" n_syms k_syms q;
   Printf.printf "1. STATISTIQUES\n";
-  Printf.printf "   - Capacité (t) : %d symboles\n" t;
+  Printf.printf "   - Capacité (t) : %d symboles\n" t_min;
+  Printf.printf "   - Bose dist (d_b) : %d symboles\n" MyBCH.db;
   Printf.printf "   - Taux (R)     : %.2f%%\n" (rate *. 100.);
   Printf.printf "   - Débit utile  : %d bits / %d envoyés\n" raw_size_bits total_tx_bits;
 
@@ -108,7 +119,7 @@ let run_test () =
     Array.blit code_bits 0 encoded_stream (i * n_bits) n_bits
   done;
 
-  Printf.printf "[...] Canal (Gilbert-Elliott)\n";
+  (* Printf.printf "[...] Canal (Gilbert-Elliott)\n";
   let noisy_stream = noisy_channel encoded_stream in
   let channel_errors = Channels.count_errors encoded_stream noisy_stream in
 
@@ -119,6 +130,38 @@ let run_test () =
   done;
   let final_view = Array.sub noisy_visual 0 raw_size_bits in
   Pbm.save (Pbm.of_channel_output img_width img_height final_view) "2_bruitee.pbm";
+  let visible_errors = Channels.count_errors img_source.data final_view in *)
+
+  (* ENTRELACEMENT AVANT LE CANAL *)
+  Printf.printf "[...] Entrelacement (Profondeur: %d)\n" depth;
+  let interleaved_stream = Interleaver.interleave encoded_stream n_bits depth in
+
+  (* Le flux entrelacé avant le canal *)
+  (* On prend une fenêtre de la taille de l'image sur le flux physique *)
+  let view_interleaved = Array.sub interleaved_stream 0 raw_size_bits in
+  Pbm.save (Pbm.of_channel_output img_width img_height view_interleaved) "1_bis_entrelacee_propre.pbm";
+
+  (* LE CANAL BRUITÉ *)
+  Printf.printf "[...] Canal (Gilbert-Elliott)\n";
+  let noisy_interleaved = noisy_channel interleaved_stream in
+  let channel_errors = Channels.count_errors interleaved_stream noisy_interleaved in
+
+  (* Le flux entrelacé frappé par la rafale *)
+  let view_noisy_interleaved = Array.sub noisy_interleaved 0 raw_size_bits in
+  Pbm.save (Pbm.of_channel_output img_width img_height view_noisy_interleaved) "2_ter_entrelacee_bruitee.pbm";
+
+  (* DÉSENTRELACEMENT AVANT DÉCODAGE *)
+  Printf.printf "[...] Désentrelacement (Dispersion des rafales)\n";
+  let noisy_stream = Interleaver.deinterleave noisy_interleaved n_bits depth in
+
+  (* Visualisation Bruit Classique (Image désentrelacée, prête pour le décodeur) *)
+  let noisy_visual = Array.make padded_size_bits 0 in
+  for i = 0 to num_blocks - 1 do
+    let msg_start = (n_syms - k_syms) * s in
+    Array.blit noisy_stream (i*n_bits + msg_start) noisy_visual (i*k_bits) k_bits
+  done;
+  let final_view = Array.sub noisy_visual 0 raw_size_bits in
+  Pbm.save (Pbm.of_channel_output img_width img_height final_view) "2_bruitee_desentrelacee.pbm";
   let visible_errors = Channels.count_errors img_source.data final_view in
 
   Printf.printf "[...] Décodage\n";

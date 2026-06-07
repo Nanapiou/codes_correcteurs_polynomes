@@ -1,0 +1,22 @@
+[INFO] Recherche Monte-Carlo (converti en Las-Vegas) (Irréductible + Primitif) pour n=15...
+[INFO] Polynôme validé : (14) + (1)x
+[INFO] Construction BCH...
+
+=== BCH(15, 5) sur F16 ===
+1. STATISTIQUES
+   - Capacité (t) : 5 symboles
+   - Bose dist (d_b) : 11 symboles
+   - Taux (R)     : 33.33%
+   - Débit utile  : 40000 bits / 120000 envoyés
+[...] Encodage
+[...] Canal (Gilbert-Elliott)
+[...] Décodage
+
+2. RÉSULTATS
+   - Bruit injecté      : 1293 bits (398 visibles)
+   - Erreurs corrigées  : 156
+   - Erreurs restantes  : 242
+
+>>> Correction Partielle : 39.2% <<<
+
+Même trucs que sartek
